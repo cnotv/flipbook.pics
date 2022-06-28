@@ -1,5 +1,8 @@
 /* color palette from <https://github.com/vuejs/theme> */
 :root {
+  --main-color-hsl: 160, 100%, 37%;
+  --main-color: hsla(var(--main-color-hsl), 1);
+  --main-color-a: hsla(var(--main-color-hsl), 0.3);
   --vt-c-white: #ffffff;
   --vt-c-white-soft: #f8f8f8;
   --vt-c-white-mute: #f2f2f2;
