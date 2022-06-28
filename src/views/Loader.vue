@@ -31,15 +31,16 @@ const handleVideoUpload = (event) => {
 <template>
   <div>
     <section class="frame">
-      <div v-show="videoSrc">
-        <video class="video" controls>
+      <!-- loading video before the src causes error in the DOM -->
+      <div v-if="videoSrc">
+        <video class="video" autoplay muted>
           <source type="video/webm" :src="videoSrc" />
           <source type="video/mp4" :src="videoSrc" />
         </video>
         <button class="delete-button" @click="videoSrc = null">X</button>
       </div>
 
-      <div class="file" v-show="!videoSrc">
+      <div class="file" v-if="!videoSrc">
         <label class="file__label" for="video">
           <h2>Add Video +</h2>
         </label>
@@ -54,12 +55,12 @@ const handleVideoUpload = (event) => {
     </section>
 
     <section class="frame">
-      <div v-show="cover">
+      <div v-if="cover">
         <img class="cover" :src="cover" />
         <button class="delete-button" @click="cover = null">X</button>
       </div>
 
-      <div class="file" v-show="!cover">
+      <div class="file" v-if="!cover">
         <label class="file__label" for="cover">
           <h2>Add Cover +</h2>
         </label>
@@ -83,8 +84,9 @@ const handleVideoUpload = (event) => {
 
 <style>
 :root {
-  --frame-width: 420px;
-  --frame-height: 250px;
+  --video-ratio: 9 / 16;
+  --frame-width: 400px;
+  --frame-height: calc(var(--frame-width) * var(--video-ratio));
   --border-width: 4px;
   --bg-color: var(--main-color);
 }
