@@ -1,8 +1,5 @@
 /* color palette from <https://github.com/vuejs/theme> */
 :root {
-  --main-color-hsl: 160, 100%, 37%;
-  --main-color: hsla(var(--main-color-hsl), 1);
-  --main-color-a: hsla(var(--main-color-hsl), 0.3);
   --vt-c-white: #ffffff;
   --vt-c-white-soft: #f8f8f8;
   --vt-c-white-mute: #f2f2f2;
@@ -35,6 +32,17 @@
 
   --color-heading: var(--vt-c-text-light-1);
   --color-text: var(--vt-c-text-light-1);
+  --color-text-a: var(--vt-c-white);
+
+  --font-size: 15px;
+  --main-color-hsl: 160, 100%, 37%;
+  --main-color: hsla(var(--main-color-hsl), 1);
+  --main-color-a: hsla(var(--main-color-hsl), 0.1);
+
+  --border-width: 3px;
+  --bg-color: var(--main-color);
+  --bg-color-w: var(--vt-c-white);
+  --border: var(--border-width) solid var(--bg-color);
 
   --section-gap: 160px;
 }
@@ -70,8 +78,20 @@ body {
   line-height: 1.6;
   font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
     Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-  font-size: 15px;
+  font-size: var(--font-size);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  border: none;
+  background-color: var(--bg-color);
+  padding: 1em;
+  font-size: var(--font-size);
+  color: var(--color-text);
+  cursor: pointer;
+}
+button:hover{
+  color: var(--color-text-a);
 }
