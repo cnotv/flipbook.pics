@@ -7,6 +7,7 @@
  */
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import * as pdfMake from "pdfmake/build/pdfmake";
 
 const router = useRouter();
 let pagesAmount = ref("50");
@@ -78,10 +79,29 @@ const handleVideoUpload = (event) => {
 };
 
 /**
+ * Reset stored video information
+ */
+const resetVideo = () => {
+  videoSrc.value = null;
+  frames.value = [];
+};
+
+/**
  * Generate PDF from frames and navigate to preview page
  */
 const printPreview = () => {
-  router.push("preview");
+  const content = frames.value.map((image) => ({
+    image,
+    width: 480 / 1.5,
+    heigth: 288 / 1.5,
+    alignment: "center",
+  }));
+  const document = {
+    pageMargins: [5, 5, 5, 5],
+    content,
+  };
+  pdfMake.createPdf(document, null).download();
+  // router.push("preview");
 };
 </script>
 
@@ -95,7 +115,7 @@ const printPreview = () => {
           <source type="video/mp4" :src="videoSrc" />
         </video>
         <canvas class="canvas" ref="canvas"></canvas>
-        <button class="delete-button" @click="videoSrc = null">X</button>
+        <button class="delete-button" @click="resetVideo()">X</button>
       </div>
 
       <div class="file" v-if="!videoSrc">
@@ -152,7 +172,7 @@ const printPreview = () => {
     </section>
 
     <section>
-      <button @click="printPreview()">Print preview</button>
+      <button :disabled="!frames.length" @click="printPreview()">Print preview</button>
     </section>
   </div>
 </template>
@@ -160,7 +180,7 @@ const printPreview = () => {
 <style>
 :root {
   --video-ratio: 9 / 16;
-  --frame-width: 400px;
+  --frame-width: 480px;
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
 }
 

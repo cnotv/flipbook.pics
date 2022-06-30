@@ -92,6 +92,11 @@ button {
   color: var(--color-text);
   cursor: pointer;
 }
-button:hover{
+button:hover {
   color: var(--color-text-a);
+}
+button:disabled {
+  color: grey;
+  background-color: lightgray;
+  border-color: lightgray;
 }
