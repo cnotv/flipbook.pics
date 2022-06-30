@@ -13,25 +13,35 @@ let pagesAmount = ref("50");
 let videoSrc = ref();
 let cover = ref();
 const video = ref<HTMLVideoElement>();
-// Refs inside v-for https://vuejs.org/guide/essentials/template-refs.html#refs-inside-v-for
-let canvas = ref<HTMLCanvasElement>();
-const frames = ref<VideoFrameMetadata[]>([]);
 
-const getFrame = async (_: DOMHighResTimeStamp, frameData: VideoFrameMetadata) => {
-  frames.value.push(frameData);
-  await drawFrame(frames.value.length - 1, canvas.value!);
+let canvas = ref<HTMLCanvasElement>();
+const frames = ref<string[]>([]);
+
+/**
+ * Video callback loop for capturing frames
+ */
+const getFrame = async (
+  _: DOMHighResTimeStamp,
+  { width, height }: VideoFrameMetadata
+) => {
+  await drawFrame(width, height, canvas.value!);
   if (!video.value!.ended) {
     video.value!["requestVideoFrameCallback"](getFrame);
   }
 };
 
-const drawFrame = async (index: number, page: HTMLCanvasElement) => {
+/**
+ * Generate image frame from the video using canvas and store it in data64
+ */
+const drawFrame = async (width: number, height: number, page: HTMLCanvasElement) => {
   const bitmap = await createImageBitmap(video.value!);
-  page.width = frames.value[index].width;
-  page.height = frames.value[index].height;
+  page.width = width;
+  page.height = height;
   const ctx = page.getContext("2d");
   if (ctx) {
     ctx.drawImage(bitmap, 0, 0);
+    let image = page.toDataURL("image/jpeg");
+    frames.value.push(image);
   }
 };
 /**
@@ -84,6 +94,7 @@ const printPreview = () => {
           <source type="video/webm" :src="videoSrc" />
           <source type="video/mp4" :src="videoSrc" />
         </video>
+        <canvas class="canvas" ref="canvas"></canvas>
         <button class="delete-button" @click="videoSrc = null">X</button>
       </div>
 
@@ -122,9 +133,18 @@ const printPreview = () => {
     </section>
 
     <section>
-      <div>
-        <canvas ref="canvas"></canvas>
+      <div class="frames">
+        <img
+          :style="{ left: index + 'px' }"
+          :src="frame"
+          alt=""
+          v-for="(frame, index) in frames"
+          :key="index"
+        />
       </div>
+    </section>
+
+    <section>
       <label for="pagesAmount"> Pages:</label>
       <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
       <input id="pagesAmount" v-model="pagesAmount" type="number" />
@@ -182,9 +202,23 @@ label {
   height: var(--frame-height);
 }
 
-.cover {
+.canvas {
+  opacity: 0;
+  position: absolute;
+  z-index: -1;
+}
+
+.frames {
+  position: relative;
   width: var(--frame-width);
   height: var(--frame-height);
+}
+
+.frames img {
+  position: absolute;
+  width: var(--frame-width);
+  height: var(--frame-height);
+  box-shadow: 1px 1px 1px 1px white;
 }
 
 .delete-button {
