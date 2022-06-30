@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from "vue-router";
+// import { RouterLink, RouterView } from "vue-router";
 import HelloWorld from "@/components/HelloWorld.vue";
 </script>
 
@@ -10,10 +10,10 @@ import HelloWorld from "@/components/HelloWorld.vue";
     <div class="wrapper">
       <HelloWorld msg="Flipbook.pics" />
 
-      <nav>
+      <!-- <nav>
         <RouterLink to="/">Load video</RouterLink>
         <RouterLink to="/preview">Printable PDF Preview</RouterLink>
-      </nav>
+      </nav> -->
     </div>
   </header>
 
@@ -87,7 +87,7 @@ nav a:first-of-type {
 
   #app {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 2fr;
     padding: 0 2rem;
   }
 
