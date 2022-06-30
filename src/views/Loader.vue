@@ -1,15 +1,41 @@
 <script lang="ts" setup>
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+/**
+ * MediaStreamTrackProcessor? https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrackProcessor
+ * VideoDecoder? https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder
+ * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
+ */
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
-let pages = ref("0");
+let pagesAmount = ref("50");
 let videoSrc = ref();
 let cover = ref();
-let frames = ref(0);
+const video = ref<HTMLVideoElement>();
+// Refs inside v-for https://vuejs.org/guide/essentials/template-refs.html#refs-inside-v-for
+let canvas = ref<HTMLCanvasElement>();
+const frames = ref<VideoFrameMetadata[]>([]);
 
+const getFrame = async (_: DOMHighResTimeStamp, frameData: VideoFrameMetadata) => {
+  frames.value.push(frameData);
+  await drawFrame(frames.value.length - 1, canvas.value!);
+  if (!video.value!.ended) {
+    video.value!["requestVideoFrameCallback"](getFrame);
+  }
+};
+
+const drawFrame = async (index: number, page: HTMLCanvasElement) => {
+  const bitmap = await createImageBitmap(video.value!);
+  page.width = frames.value[index].width;
+  page.height = frames.value[index].height;
+  const ctx = page.getContext("2d");
+  if (ctx) {
+    ctx.drawImage(bitmap, 0, 0);
+  }
+};
 /**
- * Add cover to the flipbook preview
+ * Add cover to the frames preview
  */
 const handleCoverUpload = (event) => {
   const file: File = event.target.files[0];
@@ -17,13 +43,12 @@ const handleCoverUpload = (event) => {
 
   reader.readAsDataURL(file);
   reader.onload = () => {
-    console.log(reader);
     cover.value = String(reader.result);
   };
 };
 
 /**
- * Load video, render it and add to the flipbook preview
+ * Load video, render it and add to the frames preview
  */
 const handleVideoUpload = (event) => {
   const file: File = event.target.files[0];
@@ -31,8 +56,14 @@ const handleVideoUpload = (event) => {
 
   reader.readAsDataURL(file);
   reader.onload = () => {
-    console.log(reader);
     videoSrc.value = String(reader.result);
+  };
+  reader.onloadend = () => {
+    const videoEl = video.value;
+    if (videoEl) {
+      videoEl.playbackRate = 10.0;
+      videoEl["requestVideoFrameCallback"](getFrame);
+    }
   };
 };
 
@@ -49,7 +80,7 @@ const printPreview = () => {
     <section class="frame">
       <!-- loading video before the src causes error in the DOM -->
       <div v-if="videoSrc">
-        <video class="video" autoplay muted>
+        <video ref="video" class="video" autoplay muted>
           <source type="video/webm" :src="videoSrc" />
           <source type="video/mp4" :src="videoSrc" />
         </video>
@@ -91,9 +122,13 @@ const printPreview = () => {
     </section>
 
     <section>
-      <label for="pages"> Pages:</label>
-      <input v-model="pages" type="range" min="0" :max="frames" />
-      <input id="pages" v-model="pages" type="number" />
+      <div>
+        <canvas ref="canvas"></canvas>
+      </div>
+      <label for="pagesAmount"> Pages:</label>
+      <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
+      <input id="pagesAmount" v-model="pagesAmount" type="number" />
+      <p>Max pages: {{ frames.length }}</p>
     </section>
 
     <section>
