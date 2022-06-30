@@ -73,6 +73,7 @@ const handleVideoUpload = (event) => {
     const videoEl = video.value;
     if (videoEl) {
       videoEl.playbackRate = 10.0;
+      videoEl.play();
       videoEl["requestVideoFrameCallback"](getFrame);
     }
   };
@@ -85,6 +86,11 @@ const resetVideo = () => {
   videoSrc.value = null;
   frames.value = [];
 };
+
+/**
+ * Flip pages again
+ */
+const flipPages = () => {};
 
 /**
  * Generate PDF from frames and navigate to preview page
@@ -110,7 +116,7 @@ const printPreview = () => {
     <section class="frame">
       <!-- loading video before the src causes error in the DOM -->
       <div v-if="videoSrc">
-        <video ref="video" class="video" autoplay muted>
+        <video ref="video" class="video" muted>
           <source type="video/webm" :src="videoSrc" />
           <source type="video/mp4" :src="videoSrc" />
         </video>
@@ -155,7 +161,8 @@ const printPreview = () => {
     <section>
       <div class="frames">
         <img
-          :style="{ left: index + 'px' }"
+          class="frames__item"
+          :class="{ 'frames__item--flipped': index < frames.length - 1 }"
           :src="frame"
           alt=""
           v-for="(frame, index) in frames"
@@ -169,6 +176,7 @@ const printPreview = () => {
       <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
       <input id="pagesAmount" v-model="pagesAmount" type="number" />
       <p>Max pages: {{ frames.length }}</p>
+      <button @click="flipPages()">></button>
     </section>
 
     <section>
@@ -234,11 +242,17 @@ label {
   height: var(--frame-height);
 }
 
-.frames img {
+.frames__item {
   position: absolute;
   width: var(--frame-width);
   height: var(--frame-height);
   box-shadow: 1px 1px 1px 1px white;
+}
+
+.frames__item--flipped {
+  transform: matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0.00125, 0, 0, 0, 1);
+  transform-origin: 0% 0% 0px;
+  transition: transform 0.2s ease-out;
 }
 
 .delete-button {
