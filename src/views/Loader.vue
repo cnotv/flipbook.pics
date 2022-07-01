@@ -8,11 +8,19 @@
 import { ref } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
+enum STATUS {
+  empty,
+  loading,
+  loaded,
+  error,
+}
+
 let pagesAmount = ref("6");
 let framesAmount = ref("50");
 let videoSrc = ref();
 let cover = ref();
 const video = ref<HTMLVideoElement>();
+const status = ref(STATUS.empty);
 
 let canvas = ref<HTMLCanvasElement>();
 const frames = ref<string[]>([]);
@@ -61,6 +69,7 @@ const handleCoverUpload = (event) => {
  * Load video, render it and add to the frames preview
  */
 const handleVideoUpload = (event) => {
+  status.value = STATUS.loading;
   const file: File = event.target.files[0];
   let reader = new FileReader();
 
@@ -69,6 +78,7 @@ const handleVideoUpload = (event) => {
     videoSrc.value = String(reader.result);
   };
   reader.onloadend = () => {
+    status.value = STATUS.loaded;
     generateFrames();
   };
 };
@@ -77,7 +87,7 @@ const generateFrames = () => {
   frames.value = [];
   const videoEl = video.value;
   if (videoEl) {
-    videoEl.playbackRate = 10.0;
+    videoEl.playbackRate = 5.0;
     videoEl.play();
     videoEl["requestVideoFrameCallback"](getFrame);
   }
@@ -87,6 +97,7 @@ const generateFrames = () => {
  * Reset stored video information
  */
 const resetVideo = () => {
+  status.value = STATUS.empty;
   videoSrc.value = null;
   frames.value = [];
 };
@@ -170,7 +181,7 @@ const printPreview = () => {
         </div>
       </template>
 
-      <div class="file" v-if="!videoSrc">
+      <div class="file" v-if="status === STATUS.empty">
         <label class="file__label" for="video">
           <h2>Add Video +</h2>
         </label>
@@ -182,6 +193,8 @@ const printPreview = () => {
           @change="handleVideoUpload($event)"
         />
       </div>
+
+      <div class="loader" v-if="status === STATUS.loading"></div>
     </section>
 
     <section>
@@ -201,6 +214,7 @@ const printPreview = () => {
 <style>
 :root {
   --video-ratio: 9 / 16;
+  --frame-padding: 50px;
   --frame-width: 560px;
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
 }
@@ -269,7 +283,7 @@ const printPreview = () => {
 }
 
 .frames__item--flipped {
-  transform: rotateY(-76deg);
+  transform: rotateY(-75deg);
   transform-origin: left center;
   opacity: 0.5;
   transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
@@ -278,6 +292,30 @@ const printPreview = () => {
 
 .actions {
   display: flex;
+}
+
+.loader {
+  width: 3em;
+  height: 3em;
+  border: var(--border);
+  border-style: dashed;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  border-radius: 50%;
+  animation: rotate360 2s linear infinite;
+}
+
+@keyframes rotate360 {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (min-width: 1024px) {
