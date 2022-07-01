@@ -10,7 +10,8 @@ import { useRouter } from "vue-router";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
 const router = useRouter();
-let pagesAmount = ref("50");
+let pagesAmount = ref("6");
+let framesAmount = ref("50");
 let videoSrc = ref();
 let cover = ref();
 const video = ref<HTMLVideoElement>();
@@ -155,10 +156,15 @@ const printPreview = () => {
     </section>
 
     <section>
-      <label for="pagesAmount"> Pages:</label>
+      <label for="pagesAmount">Pages:</label>
       <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
       <input id="pagesAmount" v-model="pagesAmount" type="number" />
       <p>Max pages: {{ frames.length }}</p>
+
+      <label for="framesAmount"> Frames:</label>
+      <input v-model="framesAmount" type="range" min="0" :max="frames.length" />
+      <input id="framesAmount" v-model="framesAmount" type="number" />
+      <p>Max frames: {{ frames.length }}</p>
 
       <div class="actions">
         <template v-if="!cover">
@@ -187,7 +193,7 @@ const printPreview = () => {
 <style>
 :root {
   --video-ratio: 9 / 16;
-  --frame-width: 480px;
+  --frame-width: 560px;
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
 }
 

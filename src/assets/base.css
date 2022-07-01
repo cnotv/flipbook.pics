@@ -90,14 +90,14 @@ button {
   background-color: var(--bg-color);
   padding: 1em;
   font-size: var(--font-size);
+  color: var(--color-text-a);
   line-height: 1.6;
-  color: var(--color-text);
   display: inline-block;
   cursor: pointer;
 }
 .button:hover,
 button:hover {
-  color: var(--color-text-a);
+  color: var(--color-text);
 }
 .button:disabled,
 button:disabled {
