@@ -123,12 +123,15 @@ const printPreview = () => {
   <div>
     <section class="frame">
       <!-- loading video before the src causes error in the DOM -->
-      <div v-if="videoSrc">
+      <template v-if="videoSrc">
         <div class="frames">
           <img
             class="frames__item"
             :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-            :style="{ zIndex: -index }"
+            :style="{
+              zIndex: -index,
+              display: index < frames.length - 10 ? 'none' : 'block',
+            }"
             :src="frame"
             alt=""
             v-for="(frame, index) in frames"
@@ -142,11 +145,19 @@ const printPreview = () => {
         <canvas class="canvas" ref="canvas"></canvas>
 
         <div class="actions">
-          <button class="delete-button" @click="resetVideo()">X</button>
-          <button :disabled="!frames.length" @click="flipPages()">></button>
-          <button :disabled="!frames.length" @click="printPreview()">Print</button>
+          <button class="actions__button" @click="resetVideo()">X</button>
+          <button class="actions__button" :disabled="!frames.length" @click="flipPages()">
+            >
+          </button>
+          <button
+            class="actions__button"
+            :disabled="!frames.length"
+            @click="printPreview()"
+          >
+            Print
+          </button>
           <template v-if="!cover">
-            <label class="button" for="cover">+ Cover</label>
+            <label class="button actions__button" for="cover">+ Cover</label>
             <input
               class="file__input"
               type="file"
@@ -156,9 +167,11 @@ const printPreview = () => {
             />
           </template>
 
-          <button v-if="cover" @click="cover = null">- Cover</button>
+          <button class="actions__button" v-if="cover" @click="cover = null">
+            - Cover
+          </button>
         </div>
-      </div>
+      </template>
 
       <div class="file" v-if="!videoSrc">
         <label class="file__label" for="video">
@@ -195,10 +208,6 @@ const printPreview = () => {
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
 }
 
-label {
-  cursor: pointer;
-}
-
 .file {
   position: relative;
 }
@@ -216,13 +225,17 @@ label {
 
 .frame {
   cursor: pointer;
+  position: relative;
   width: var(--frame-width);
   height: var(--frame-height);
   border: var(--border);
   box-sizing: content-box;
-  margin-top: 1em;
   margin-bottom: 8em;
+  margin-top: 1em;
+  margin-left: auto;
+  margin-right: auto;
   max-width: 100%;
+  border-radius: var(--border-radius);
 }
 .frame:hover {
   background-color: var(--main-color-a);
@@ -233,6 +246,8 @@ label {
   opacity: 0;
   position: absolute;
   z-index: -1;
+  top: 0;
+  max-width: 100%;
 }
 
 .frames {
@@ -270,35 +285,31 @@ label {
 
 .actions {
   display: flex;
-  flex-direction: column;
-  margin-top: 1em;
-  gap: 1em;
-
-  position: absolute;
-  top: 0;
-  height: 3em;
-  border: none;
-  right: -23%;
-  width: 130px;
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 1024px) {
   .frame {
-    max-width: 85%;
+    margin-bottom: 8em;
   }
 
   .actions {
-    display: flex;
     flex-direction: column;
-    margin-top: 1em;
     gap: 1em;
-
     position: absolute;
     top: 0;
     height: 3em;
     border: none;
-    right: -27%;
-    width: 85px;
+    right: -23%;
+    width: 130px;
+  }
+}
+@media (max-width: 1024px) {
+  .actions {
+    margin-top: 4em;
+    flex-direction: row;
+    gap: 0.2em;
+    height: 3em;
+    border: none;
   }
 }
 </style>
