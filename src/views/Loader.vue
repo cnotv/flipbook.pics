@@ -76,6 +76,7 @@ const handleVideoUpload = (event) => {
 };
 
 const generateFrames = () => {
+  frames.value = [];
   const videoEl = video.value;
   if (videoEl) {
     videoEl.playbackRate = 10.0;
@@ -127,6 +128,7 @@ const printPreview = () => {
           <img
             class="frames__item"
             :class="{ 'frames__item--flipped': index < frames.length - 1 }"
+            :style="{ zIndex: -index }"
             :src="frame"
             alt=""
             v-for="(frame, index) in frames"
@@ -138,7 +140,24 @@ const printPreview = () => {
           <source type="video/mp4" :src="videoSrc" />
         </video>
         <canvas class="canvas" ref="canvas"></canvas>
-        <button class="delete-button" @click="resetVideo()">X</button>
+
+        <div class="actions">
+          <button class="delete-button" @click="resetVideo()">X</button>
+          <button :disabled="!frames.length" @click="flipPages()">></button>
+          <button :disabled="!frames.length" @click="printPreview()">Print</button>
+          <template v-if="!cover">
+            <label class="button" for="cover">+ Cover</label>
+            <input
+              class="file__input"
+              type="file"
+              id="cover"
+              accept="image/*"
+              @change="handleCoverUpload($event)"
+            />
+          </template>
+
+          <button v-if="cover" @click="cover = null">- Cover</button>
+        </div>
       </div>
 
       <div class="file" v-if="!videoSrc">
@@ -165,27 +184,6 @@ const printPreview = () => {
       <input v-model="framesAmount" type="range" min="0" :max="frames.length" />
       <input id="framesAmount" v-model="framesAmount" type="number" />
       <p>Max frames: {{ frames.length }}</p>
-
-      <div class="actions">
-        <template v-if="!cover">
-          <label class="button" for="cover">Add Cover +</label>
-          <input
-            class="file__input"
-            type="file"
-            id="cover"
-            accept="image/*"
-            @change="handleCoverUpload($event)"
-          />
-        </template>
-
-        <button :disabled="!frames.length" @click="flipPages()">></button>
-
-        <button :disabled="!frames.length" @click="printPreview()">Print preview</button>
-      </div>
-
-      <div v-if="cover">
-        <button @click="cover = null">X</button>
-      </div>
     </section>
   </div>
 </template>
@@ -222,7 +220,7 @@ label {
   height: var(--frame-height);
   border: var(--border);
   box-sizing: content-box;
-  margin-bottom: 4em;
+  margin-bottom: 8em;
   max-width: 100%;
 }
 .frame:hover {
@@ -252,7 +250,7 @@ label {
   position: absolute;
   width: var(--frame-width);
   height: var(--frame-height);
-  box-shadow: 1px 1px 1px 1px white;
+  /* box-shadow: 1px 1px 1px 1px white; */
   -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
   -webkit-transition-property: -webkit-transform;
@@ -260,46 +258,24 @@ label {
 }
 
 .frames__item--flipped {
-  transform: rotateY(-180deg);
+  transform: rotateY(-76deg);
   transform-origin: left center;
-  transition: transform 0.2s ease-out;
+  opacity: 0.5;
+  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
+    opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
 }
 
 .actions {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   margin-top: 1em;
   gap: 1em;
-}
 
-.delete-button {
   position: absolute;
   top: 0;
-  width: 3em;
   height: 3em;
   border: none;
-  right: -4em;
-  font-weight: 500;
-  background-color: var(--bg-color);
-  padding: 0.5rem;
-  border-radius: 50%;
-  cursor: pointer;
-  color: var(--color-text);
-  line-height: 1.6;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-  font-size: 15px;
-}
-
-.delete-button::before {
-  content: "";
-  width: 3em;
-  height: 3em;
-  background: var(--bg-color);
-  display: block;
-  position: absolute;
-  top: 0;
-  left: -1.5em;
-  z-index: -1;
+  right: -23%;
+  width: 130px;
 }
 </style>
