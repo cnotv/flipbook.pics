@@ -223,8 +223,8 @@ label {
   border: var(--border);
   box-sizing: content-box;
   margin-bottom: 4em;
+  max-width: 100%;
 }
-
 .frame:hover {
   background-color: var(--main-color-a);
 }

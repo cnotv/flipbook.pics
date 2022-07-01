@@ -25,6 +25,7 @@ import HelloWorld from "@/components/HelloWorld.vue";
 @import "@/assets/base.css";
 
 #app {
+  width: 100vw;
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem;
@@ -40,6 +41,7 @@ header {
 .logo {
   display: block;
   margin: 0 auto 2rem;
+  font-size: 8em;
 }
 
 a,
@@ -80,6 +82,18 @@ nav a:first-of-type {
   border: 0;
 }
 
+@media (max-width: 1024px) {
+  header {
+    width: 100%;
+  }
+
+  .logo {
+    width: 100%;
+    margin: auto;
+    text-align: center;
+  }
+}
+
 @media (min-width: 1024px) {
   body {
     display: flex;
@@ -106,7 +120,6 @@ nav a:first-of-type {
 
   .logo {
     margin: 0 2rem 0 0;
-    font-size: 120px;
   }
 
   nav {
