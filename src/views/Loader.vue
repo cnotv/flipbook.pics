@@ -220,6 +220,7 @@ label {
   height: var(--frame-height);
   border: var(--border);
   box-sizing: content-box;
+  margin-top: 1em;
   margin-bottom: 8em;
   max-width: 100%;
 }
@@ -244,6 +245,7 @@ label {
   perspective: 1300px;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  max-width: 100%;
 }
 
 .frames__item {
@@ -255,6 +257,7 @@ label {
   transform-style: preserve-3d;
   -webkit-transition-property: -webkit-transform;
   transition-property: transform;
+  max-width: 100%;
 }
 
 .frames__item--flipped {
@@ -277,5 +280,25 @@ label {
   border: none;
   right: -23%;
   width: 130px;
+}
+
+@media (max-width: 1024px) {
+  .frame {
+    max-width: 85%;
+  }
+
+  .actions {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1em;
+    gap: 1em;
+
+    position: absolute;
+    top: 0;
+    height: 3em;
+    border: none;
+    right: -27%;
+    width: 85px;
+  }
 }
 </style>

@@ -90,6 +90,7 @@ nav a:first-of-type {
   .logo {
     width: 100%;
     margin: auto;
+    font-size: 4em;
     text-align: center;
   }
 }
