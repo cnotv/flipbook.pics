@@ -6,10 +6,8 @@
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
 import { ref } from "vue";
-import { useRouter } from "vue-router";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
-const router = useRouter();
 let pagesAmount = ref("6");
 let framesAmount = ref("50");
 let videoSrc = ref();
@@ -115,7 +113,6 @@ const printPreview = () => {
     content,
   };
   pdfMake.createPdf(document, null).download();
-  // router.push("preview");
 };
 </script>
 
