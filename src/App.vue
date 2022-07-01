@@ -5,7 +5,8 @@ import HelloWorld from "@/components/HelloWorld.vue";
 
 <template>
   <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
+    <!-- <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" /> -->
+    <div class="logo">📖</div>
 
     <div class="wrapper">
       <HelloWorld msg="Flipbook.pics" />
@@ -105,6 +106,7 @@ nav a:first-of-type {
 
   .logo {
     margin: 0 2rem 0 0;
+    font-size: 120px;
   }
 
   nav {
