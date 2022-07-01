@@ -243,11 +243,7 @@ const printPreview = () => {
 
 .video,
 .canvas {
-  opacity: 0;
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  max-width: 100%;
+  display: none;
 }
 
 .frames {
