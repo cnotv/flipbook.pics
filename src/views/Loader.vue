@@ -70,13 +70,17 @@ const handleVideoUpload = (event) => {
     videoSrc.value = String(reader.result);
   };
   reader.onloadend = () => {
-    const videoEl = video.value;
-    if (videoEl) {
-      videoEl.playbackRate = 10.0;
-      videoEl.play();
-      videoEl["requestVideoFrameCallback"](getFrame);
-    }
+    generateFrames();
   };
+};
+
+const generateFrames = () => {
+  const videoEl = video.value;
+  if (videoEl) {
+    videoEl.playbackRate = 10.0;
+    videoEl.play();
+    videoEl["requestVideoFrameCallback"](getFrame);
+  }
 };
 
 /**
@@ -90,7 +94,9 @@ const resetVideo = () => {
 /**
  * Flip pages again
  */
-const flipPages = () => {};
+const flipPages = () => {
+  generateFrames();
+};
 
 /**
  * Generate PDF from frames and navigate to preview page
@@ -116,6 +122,16 @@ const printPreview = () => {
     <section class="frame">
       <!-- loading video before the src causes error in the DOM -->
       <div v-if="videoSrc">
+        <div class="frames">
+          <img
+            class="frames__item"
+            :class="{ 'frames__item--flipped': index < frames.length - 1 }"
+            :src="frame"
+            alt=""
+            v-for="(frame, index) in frames"
+            :key="index"
+          />
+        </div>
         <video ref="video" class="video" muted>
           <source type="video/webm" :src="videoSrc" />
           <source type="video/mp4" :src="videoSrc" />
@@ -138,49 +154,32 @@ const printPreview = () => {
       </div>
     </section>
 
-    <section class="frame">
-      <div v-if="cover">
-        <img class="cover" :src="cover" />
-        <button class="delete-button" @click="cover = null">X</button>
-      </div>
-
-      <div class="file" v-if="!cover">
-        <label class="file__label" for="cover">
-          <h2>Add Cover +</h2>
-        </label>
-        <input
-          class="file__input"
-          type="file"
-          id="cover"
-          accept="image/*"
-          @change="handleCoverUpload($event)"
-        />
-      </div>
-    </section>
-
-    <section>
-      <div class="frames">
-        <img
-          class="frames__item"
-          :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-          :src="frame"
-          alt=""
-          v-for="(frame, index) in frames"
-          :key="index"
-        />
-      </div>
-    </section>
-
     <section>
       <label for="pagesAmount"> Pages:</label>
       <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
       <input id="pagesAmount" v-model="pagesAmount" type="number" />
       <p>Max pages: {{ frames.length }}</p>
-      <button @click="flipPages()">></button>
-    </section>
 
-    <section>
-      <button :disabled="!frames.length" @click="printPreview()">Print preview</button>
+      <div class="actions">
+        <template v-if="!cover">
+          <label class="button" for="cover">Add Cover +</label>
+          <input
+            class="file__input"
+            type="file"
+            id="cover"
+            accept="image/*"
+            @change="handleCoverUpload($event)"
+          />
+        </template>
+
+        <button :disabled="!frames.length" @click="flipPages()">></button>
+
+        <button :disabled="!frames.length" @click="printPreview()">Print preview</button>
+      </div>
+
+      <div v-if="cover">
+        <button @click="cover = null">X</button>
+      </div>
     </section>
   </div>
 </template>
@@ -201,14 +200,13 @@ label {
 }
 .file__label {
   display: block;
-  width: var(--frame-width);
-  height: var(--frame-height);
   text-align: center;
   line-height: var(--frame-height);
 }
 
 .file__input {
   position: absolute;
+  z-index: -1;
   opacity: 0;
 }
 
@@ -218,18 +216,14 @@ label {
   height: var(--frame-height);
   border: var(--border);
   box-sizing: content-box;
-  margin-bottom: 1em;
+  margin-bottom: 4em;
 }
 
 .frame:hover {
   background-color: var(--main-color-a);
 }
 
-.video {
-  width: var(--frame-width);
-  height: var(--frame-height);
-}
-
+.video,
 .canvas {
   opacity: 0;
   position: absolute;
@@ -240,6 +234,12 @@ label {
   position: relative;
   width: var(--frame-width);
   height: var(--frame-height);
+
+  z-index: 100;
+  -webkit-perspective: 1300px;
+  perspective: 1300px;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .frames__item {
@@ -247,12 +247,23 @@ label {
   width: var(--frame-width);
   height: var(--frame-height);
   box-shadow: 1px 1px 1px 1px white;
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  -webkit-transition-property: -webkit-transform;
+  transition-property: transform;
 }
 
 .frames__item--flipped {
-  transform: matrix3d(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0.00125, 0, 0, 0, 1);
-  transform-origin: 0% 0% 0px;
+  transform: rotateY(-180deg);
+  transform-origin: left center;
   transition: transform 0.2s ease-out;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  margin-top: 1em;
+  gap: 1em;
 }
 
 .delete-button {

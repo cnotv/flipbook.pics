@@ -84,17 +84,22 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.button,
 button {
   border: none;
   background-color: var(--bg-color);
   padding: 1em;
   font-size: var(--font-size);
+  line-height: 1.6;
   color: var(--color-text);
+  display: inline-block;
   cursor: pointer;
 }
+.button:hover,
 button:hover {
   color: var(--color-text-a);
 }
+.button:disabled,
 button:disabled {
   color: grey;
   background-color: lightgray;
