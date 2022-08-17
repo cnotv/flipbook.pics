@@ -17,12 +17,15 @@ enum STATUS {
 
 let pagesAmount = ref("6");
 let framesAmount = ref("50");
+let startFrame = ref("0");
+let endFrame = ref();
 let videoSrc = ref();
 let cover = ref();
 const video = ref<HTMLVideoElement>();
 const status = ref(STATUS.empty);
 
 let canvas = ref<HTMLCanvasElement>();
+const totalFrames = ref<string[]>([]);
 const frames = ref<string[]>([]);
 
 /**
@@ -33,6 +36,7 @@ const getFrame = async (
   { width, height }: VideoFrameMetadata
 ) => {
   await drawFrame(width, height, canvas.value!);
+  updateFrames();
   if (!video.value!.ended) {
     video.value!["requestVideoFrameCallback"](getFrame);
   }
@@ -49,7 +53,7 @@ const drawFrame = async (width: number, height: number, page: HTMLCanvasElement)
   if (ctx) {
     ctx.drawImage(bitmap, 0, 0);
     let image = page.toDataURL("image/jpeg");
-    frames.value.push(image);
+    totalFrames.value.push(image);
   }
 };
 /**
@@ -83,11 +87,14 @@ const handleVideoUpload = (event) => {
   };
 };
 
+/**
+ * Generate frames from videos from given uploaded video file
+ */
 const generateFrames = () => {
-  frames.value = [];
+  totalFrames.value = [];
   const videoEl = video.value;
   if (videoEl) {
-    videoEl.playbackRate = 5.0;
+    videoEl.playbackRate = 10.0;
     videoEl.play();
     videoEl["requestVideoFrameCallback"](getFrame);
   }
@@ -99,6 +106,7 @@ const generateFrames = () => {
 const resetVideo = () => {
   status.value = STATUS.empty;
   videoSrc.value = null;
+  totalFrames.value = [];
   frames.value = [];
 };
 
@@ -110,13 +118,23 @@ const flipPages = () => {
 };
 
 /**
+ * Get actual frames from given video frames
+ */
+const updateFrames = () => {
+  endFrame.value = endFrame.value || totalFrames.value.length;
+  const dividend = +`${totalFrames.value.length / +framesAmount.value}`.substring(0, 3);
+  console.log(dividend);
+  frames.value = totalFrames.value.filter((_, i) => Number.isInteger(i / dividend));
+};
+
+/**
  * Generate PDF from frames and navigate to preview page
  */
 const printPreview = () => {
   const content = frames.value.map((image) => ({
     image,
     width: 480 / 1.5,
-    heigth: 288 / 1.5,
+    height: 288 / 1.5,
     alignment: "center",
   }));
   const document = {
@@ -135,10 +153,10 @@ const printPreview = () => {
         <div class="frames">
           <img
             class="frames__item"
-            :class="{ 'frames__item--flipped': index < frames.length - 1 }"
+            :class="{ 'frames__item--flipped': index < totalFrames.length - 1 }"
             :style="{
               zIndex: -index,
-              display: index < frames.length - 10 ? 'none' : 'block',
+              display: index < totalFrames.length - 10 ? 'none' : 'block',
             }"
             :src="frame"
             alt=""
@@ -154,12 +172,16 @@ const printPreview = () => {
 
         <div class="actions">
           <button class="actions__button" @click="resetVideo()">X</button>
-          <button class="actions__button" :disabled="!frames.length" @click="flipPages()">
+          <button
+            class="actions__button"
+            :disabled="!totalFrames.length"
+            @click="flipPages()"
+          >
             >
           </button>
           <button
             class="actions__button"
-            :disabled="!frames.length"
+            :disabled="!totalFrames.length"
             @click="printPreview()"
           >
             Print
@@ -199,14 +221,41 @@ const printPreview = () => {
 
     <section>
       <label for="pagesAmount">Pages:</label>
-      <input v-model="pagesAmount" type="range" min="0" :max="frames.length" />
-      <input id="pagesAmount" v-model="pagesAmount" type="number" />
-      <p>Max pages: {{ frames.length }}</p>
+      <input v-model="pagesAmount" type="range" min="0" :max="totalFrames.length" />
+      <input
+        id="pagesAmount"
+        v-model="pagesAmount"
+        type="number"
+        v-on:change="updateFrames"
+      />
+      <p>Max pages: {{ totalFrames.length }}</p>
 
       <label for="framesAmount"> Frames:</label>
-      <input v-model="framesAmount" type="range" min="0" :max="frames.length" />
-      <input id="framesAmount" v-model="framesAmount" type="number" />
-      <p>Max frames: {{ frames.length }}</p>
+      <input
+        v-model="framesAmount"
+        type="range"
+        min="0"
+        :max="totalFrames.length"
+        v-on:change="updateFrames"
+      />
+      <input
+        id="framesAmount"
+        v-model="framesAmount"
+        type="number"
+        v-on:change="updateFrames"
+      />
+      <p>Max frames: {{ totalFrames.length }}</p>
+
+      <label for="startFrame"> Start:</label>
+      <input
+        id="startFrame"
+        v-model="startFrame"
+        type="number"
+        v-on:change="updateFrames"
+      />
+
+      <label for="endFrame"> End:</label>
+      <input id="endFrame" v-model="endFrame" type="number" v-on:change="updateFrames" />
     </section>
   </div>
 </template>
