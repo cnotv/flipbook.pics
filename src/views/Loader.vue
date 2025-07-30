@@ -8,6 +8,11 @@
 import { ref } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
+interface VideoFrameMetadata {
+  width: number;
+  height: number;
+}
+
 enum STATUS {
   empty,
   loading,
@@ -15,16 +20,16 @@ enum STATUS {
   error,
 }
 
-let pagesAmount = ref("6");
-let framesAmount = ref("50");
-let startFrame = ref("0");
-let endFrame = ref();
-let videoSrc = ref();
-let cover = ref();
+const pagesAmount = ref("6");
+const framesAmount = ref("50");
+const startFrame = ref("0");
+const endFrame = ref<string | number>();
+const videoSrc = ref<string | null>();
+const cover = ref<string | null>();
 const video = ref<HTMLVideoElement>();
 const status = ref(STATUS.empty);
 
-let canvas = ref<HTMLCanvasElement>();
+const canvas = ref<HTMLCanvasElement>();
 const totalFrames = ref<string[]>([]);
 const frames = ref<string[]>([]);
 
@@ -33,7 +38,7 @@ const frames = ref<string[]>([]);
  */
 const getFrame = async (
   _: DOMHighResTimeStamp,
-  { width, height }: VideoFrameMetadata
+  { width, height }: VideoFrameMetadata,
 ) => {
   await drawFrame(width, height, canvas.value!);
   updateFrames();
@@ -45,23 +50,28 @@ const getFrame = async (
 /**
  * Generate image frame from the video using canvas and store it in data64
  */
-const drawFrame = async (width: number, height: number, page: HTMLCanvasElement) => {
+const drawFrame = async (
+  width: number,
+  height: number,
+  page: HTMLCanvasElement,
+) => {
   const bitmap = await createImageBitmap(video.value!);
   page.width = width;
   page.height = height;
   const ctx = page.getContext("2d");
   if (ctx) {
     ctx.drawImage(bitmap, 0, 0);
-    let image = page.toDataURL("image/jpeg");
+    const image = page.toDataURL("image/jpeg");
     totalFrames.value.push(image);
   }
 };
 /**
  * Add cover to the frames preview
  */
-const handleCoverUpload = (event) => {
-  const file: File = event.target.files[0];
-  let reader = new FileReader();
+const handleCoverUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const file: File = target.files![0];
+  const reader = new FileReader();
 
   reader.readAsDataURL(file);
   reader.onload = () => {
@@ -72,10 +82,11 @@ const handleCoverUpload = (event) => {
 /**
  * Load video, render it and add to the frames preview
  */
-const handleVideoUpload = (event) => {
+const handleVideoUpload = (event: Event) => {
   status.value = STATUS.loading;
-  const file: File = event.target.files[0];
-  let reader = new FileReader();
+  const target = event.target as HTMLInputElement;
+  const file: File = target.files![0];
+  const reader = new FileReader();
 
   reader.readAsDataURL(file);
   reader.onload = () => {
@@ -122,9 +133,13 @@ const flipPages = () => {
  */
 const updateFrames = () => {
   endFrame.value = endFrame.value || totalFrames.value.length;
-  const dividend = +`${totalFrames.value.length / +framesAmount.value}`.substring(0, 3);
+  const dividend = +(totalFrames.value.length / +framesAmount.value)
+    .toString()
+    .substring(0, 3);
   console.log(dividend);
-  frames.value = totalFrames.value.filter((_, i) => Number.isInteger(i / dividend));
+  frames.value = totalFrames.value.filter((_, i) =>
+    Number.isInteger(i / dividend),
+  );
 };
 
 /**
@@ -135,13 +150,13 @@ const printPreview = () => {
     image,
     width: 480 / 1.5,
     height: 288 / 1.5,
-    alignment: "center",
+    alignment: "center" as const,
   }));
   const document = {
-    pageMargins: [5, 5, 5, 5],
+    pageMargins: [5, 5, 5, 5] as [number, number, number, number],
     content,
   };
-  pdfMake.createPdf(document, null).download();
+  pdfMake.createPdf(document).download();
 };
 </script>
 
@@ -221,7 +236,12 @@ const printPreview = () => {
 
     <section>
       <label for="pagesAmount">Pages:</label>
-      <input v-model="pagesAmount" type="range" min="0" :max="totalFrames.length" />
+      <input
+        v-model="pagesAmount"
+        type="range"
+        min="0"
+        :max="totalFrames.length"
+      />
       <input
         id="pagesAmount"
         v-model="pagesAmount"
@@ -255,7 +275,12 @@ const printPreview = () => {
       />
 
       <label for="endFrame"> End:</label>
-      <input id="endFrame" v-model="endFrame" type="number" v-on:change="updateFrames" />
+      <input
+        id="endFrame"
+        v-model="endFrame"
+        type="number"
+        v-on:change="updateFrames"
+      />
     </section>
   </div>
 </template>
@@ -335,7 +360,8 @@ const printPreview = () => {
   transform: rotateY(-75deg);
   transform-origin: left center;
   opacity: 0.5;
-  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
+  transition:
+    transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
     opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
 }
 
