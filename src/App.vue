@@ -1,20 +1,13 @@
 <script setup lang="ts">
-// import { RouterLink, RouterView } from "vue-router";
 import Hero from "@/components/Hero.vue";
 </script>
 
 <template>
   <header>
-    <!-- <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" /> -->
     <div class="logo">📖</div>
 
     <div class="wrapper">
       <Hero msg="Flipbook.pics" />
-
-      <!-- <nav>
-        <RouterLink to="/">Load video</RouterLink>
-        <RouterLink to="/preview">Printable PDF Preview</RouterLink>
-      </nav> -->
     </div>
   </header>
 

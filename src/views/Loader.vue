@@ -32,14 +32,17 @@ const status = ref(STATUS.empty);
 const canvas = ref<HTMLCanvasElement>();
 const totalFrames = ref<string[]>([]);
 const frames = ref<string[]>([]);
+const videoAspectRatio = ref<number>(16 / 9); // Default aspect ratio
 
 /**
  * Video callback loop for capturing frames
  */
 const getFrame = async (
   _: DOMHighResTimeStamp,
-  { width, height }: VideoFrameMetadata,
+  { width, height }: VideoFrameMetadata
 ) => {
+  // Update aspect ratio based on actual video dimensions
+  videoAspectRatio.value = width / height;
   await drawFrame(width, height, canvas.value!);
   updateFrames();
   if (!video.value!.ended) {
@@ -50,18 +53,44 @@ const getFrame = async (
 /**
  * Generate image frame from the video using canvas and store it in data64
  */
-const drawFrame = async (
-  width: number,
-  height: number,
-  page: HTMLCanvasElement,
-) => {
+const drawFrame = async (width: number, height: number, page: HTMLCanvasElement) => {
   const bitmap = await createImageBitmap(video.value!);
-  page.width = width;
-  page.height = height;
+
+  // Use a consistent canvas size that matches our CSS frame dimensions
+  const frameWidth = 560; // matches --frame-width
+  const frameHeight = Math.round(frameWidth * (9 / 16)); // matches --frame-height calculation
+
+  page.width = frameWidth;
+  page.height = frameHeight;
+
   const ctx = page.getContext("2d");
   if (ctx) {
-    ctx.drawImage(bitmap, 0, 0);
-    const image = page.toDataURL("image/jpeg");
+    // Clear canvas
+    ctx.clearRect(0, 0, frameWidth, frameHeight);
+
+    // Calculate dimensions to fit the video within the frame while maintaining aspect ratio
+    const videoAspect = width / height;
+    const frameAspect = frameWidth / frameHeight;
+
+    let drawWidth, drawHeight, drawX, drawY;
+
+    if (videoAspect > frameAspect) {
+      // Video is wider - fit to width
+      drawWidth = frameWidth;
+      drawHeight = frameWidth / videoAspect;
+      drawX = 0;
+      drawY = (frameHeight - drawHeight) / 2;
+    } else {
+      // Video is taller - fit to height
+      drawHeight = frameHeight;
+      drawWidth = frameHeight * videoAspect;
+      drawX = (frameWidth - drawWidth) / 2;
+      drawY = 0;
+    }
+
+    // Draw the image centered and maintaining aspect ratio
+    ctx.drawImage(bitmap, drawX, drawY, drawWidth, drawHeight);
+    const image = page.toDataURL("image/jpeg", 0.9);
     totalFrames.value.push(image);
   }
 };
@@ -105,6 +134,11 @@ const generateFrames = () => {
   totalFrames.value = [];
   const videoEl = video.value;
   if (videoEl) {
+    // Wait for video metadata to load to get accurate dimensions
+    videoEl.addEventListener("loadedmetadata", () => {
+      videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
+    });
+
     videoEl.playbackRate = 10.0;
     videoEl.play();
     videoEl["requestVideoFrameCallback"](getFrame);
@@ -138,7 +172,7 @@ const updateFrames = () => {
     .substring(0, 3);
   console.log(dividend);
   frames.value = totalFrames.value.filter((_, i) =>
-    Number.isInteger(i / dividend),
+    Number.isInteger(i / dividend)
   );
 };
 
@@ -146,10 +180,25 @@ const updateFrames = () => {
  * Generate PDF from frames and navigate to preview page
  */
 const printPreview = () => {
+  // Calculate dimensions maintaining aspect ratio
+  const maxWidth = 480 / 1.5;
+  const maxHeight = 288 / 1.5;
+
+  let pdfWidth, pdfHeight;
+  if (videoAspectRatio.value > maxWidth / maxHeight) {
+    // Video is wider, constrain by width
+    pdfWidth = maxWidth;
+    pdfHeight = maxWidth / videoAspectRatio.value;
+  } else {
+    // Video is taller, constrain by height
+    pdfHeight = maxHeight;
+    pdfWidth = maxHeight * videoAspectRatio.value;
+  }
+
   const content = frames.value.map((image) => ({
     image,
-    width: 480 / 1.5,
-    height: 288 / 1.5,
+    width: pdfWidth,
+    height: pdfHeight,
     alignment: "center" as const,
   }));
   const document = {
@@ -335,19 +384,22 @@ const printPreview = () => {
   position: relative;
   width: var(--frame-width);
   height: var(--frame-height);
-
   z-index: 100;
   -webkit-perspective: 1300px;
   perspective: 1300px;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   max-width: 100%;
+  overflow: hidden; /* Only the frames container needs overflow hidden */
+  border-radius: var(--border-radius);
 }
 
 .frames__item {
   position: absolute;
   width: var(--frame-width);
   height: var(--frame-height);
+  object-fit: contain; /* Maintain aspect ratio within fixed dimensions */
+  object-position: center; /* Center the content */
   /* box-shadow: 1px 1px 1px 1px white; */
   -webkit-transform-style: preserve-3d;
   transform-style: preserve-3d;
@@ -360,8 +412,7 @@ const printPreview = () => {
   transform: rotateY(-75deg);
   transform-origin: left center;
   opacity: 0.5;
-  transition:
-    transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
+  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
     opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
 }
 
