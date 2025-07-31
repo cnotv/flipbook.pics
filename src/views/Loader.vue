@@ -7,6 +7,8 @@
  */
 import { ref } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
+import FlipButton from "../components/FlipButton.vue";
+import FlipSlider from "../components/FlipSlider.vue";
 
 interface VideoFrameMetadata {
   width: number;
@@ -20,10 +22,7 @@ enum STATUS {
   error,
 }
 
-const pagesAmount = ref("6");
-const framesAmount = ref("50");
-const startFrame = ref("0");
-const endFrame = ref<string | number>();
+const framesAmount = ref("0");
 const videoSrc = ref<string | null>();
 const cover = ref<string | null>();
 const video = ref<HTMLVideoElement>();
@@ -47,6 +46,10 @@ const getFrame = async (
   updateFrames();
   if (!video.value!.ended) {
     video.value!["requestVideoFrameCallback"](getFrame);
+  } else {
+    // Video has ended, set framesAmount to total frames generated
+    framesAmount.value = totalFrames.value.length.toString();
+    updateFrames(); // Update frames one more time with the final count
   }
 };
 
@@ -210,10 +213,36 @@ const flipPages = () => {
 };
 
 /**
- * Get actual frames from given video frames
+ * Get actual frames from given video frames, sampling evenly based on framesAmount
  */
 const updateFrames = () => {
-  frames.value = totalFrames.value;
+  const targetFrameCount = Math.max(1, parseInt(framesAmount.value) || 1);
+  const totalFrameCount = totalFrames.value.length;
+
+  if (totalFrameCount === 0) {
+    frames.value = [];
+    return;
+  }
+
+  // Ensure framesAmount doesn't exceed total frames
+  const actualTargetCount = Math.min(targetFrameCount, totalFrameCount);
+
+  if (actualTargetCount >= totalFrameCount) {
+    // If target is greater than or equal to total, use all frames
+    frames.value = [...totalFrames.value];
+    return;
+  }
+
+  // Sample frames evenly across the video to maintain consistency
+  const sampledFrames: string[] = [];
+  const step = totalFrameCount / actualTargetCount;
+
+  for (let i = 0; i < actualTargetCount; i++) {
+    const frameIndex = Math.floor(i * step);
+    sampledFrames.push(totalFrames.value[frameIndex]);
+  }
+
+  frames.value = sampledFrames;
 };
 
 /**
@@ -235,12 +264,29 @@ const printPreview = () => {
     pdfWidth = maxHeight * videoAspectRatio.value;
   }
 
-  const content = frames.value.map((image) => ({
-    image,
-    width: pdfWidth,
-    height: pdfHeight,
-    alignment: "center" as const,
-  }));
+  // Create content array starting with cover if available
+  const content = [];
+
+  // Add cover as first page if it exists
+  if (cover.value) {
+    content.push({
+      image: cover.value,
+      width: pdfWidth,
+      height: pdfHeight,
+      alignment: "center" as const,
+    });
+  }
+
+  // Add all video frames
+  frames.value.forEach((image) => {
+    content.push({
+      image,
+      width: pdfWidth,
+      height: pdfHeight,
+      alignment: "center" as const,
+    });
+  });
+
   const document = {
     pageMargins: [5, 5, 5, 5] as [number, number, number, number],
     content,
@@ -255,12 +301,23 @@ const printPreview = () => {
       <!-- loading video before the src causes error in the DOM -->
       <template v-if="videoSrc">
         <div class="frames">
+          <!-- Show cover as the topmost frame if it exists -->
+          <img
+            v-if="cover"
+            class="frames__item"
+            :style="{
+              zIndex: 1,
+              display: 'block',
+            }"
+            :src="cover"
+            alt="Cover"
+          />
           <img
             class="frames__item"
-            :class="{ 'frames__item--flipped': index < totalFrames.length - 1 }"
+            :class="{ 'frames__item--flipped': index < frames.length - 1 }"
             :style="{
               zIndex: -index,
-              display: index < totalFrames.length - 10 ? 'none' : 'block',
+              display: index < frames.length - 10 ? 'none' : 'block',
             }"
             :src="frame"
             alt=""
@@ -269,27 +326,20 @@ const printPreview = () => {
           />
         </div>
         <video ref="video" class="video" muted>
-          <source type="video/webm" :src="videoSrc" />
-          <source type="video/mp4" :src="videoSrc" />
+          <source :src="videoSrc" type="video/mp4" />
+          <source :src="videoSrc" type="video/webm" />
+          Your browser does not support the video tag.
         </video>
         <canvas class="canvas" ref="canvas"></canvas>
 
         <div class="actions">
-          <button class="actions__button" @click="resetVideo()">X</button>
-          <button
-            class="actions__button"
-            :disabled="!totalFrames.length"
-            @click="flipPages()"
-          >
+          <FlipButton @click="resetVideo()">X</FlipButton>
+          <FlipButton :disabled="!totalFrames.length" @click="flipPages()">
             >
-          </button>
-          <button
-            class="actions__button"
-            :disabled="!totalFrames.length"
-            @click="printPreview()"
-          >
+          </FlipButton>
+          <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
             Print
-          </button>
+          </FlipButton>
           <template v-if="!cover">
             <label class="button actions__button" for="cover">+ Cover</label>
             <input
@@ -301,9 +351,7 @@ const printPreview = () => {
             />
           </template>
 
-          <button class="actions__button" v-if="cover" @click="cover = null">
-            - Cover
-          </button>
+          <FlipButton v-if="cover" @click="cover = null"> - Cover </FlipButton>
         </div>
       </template>
 
@@ -333,45 +381,28 @@ const printPreview = () => {
       </div>
 
       <div class="loader" v-if="status === STATUS.loading"></div>
+
+      <div class="error" v-if="status === STATUS.error">
+        <p>Error loading video. Please try again or upload a different video.</p>
+        <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
+      </div>
     </section>
 
     <section>
-      <label for="pagesAmount">Pages:</label>
-      <input v-model="pagesAmount" type="range" min="0" :max="totalFrames.length" />
-      <input
-        id="pagesAmount"
-        v-model="pagesAmount"
-        type="number"
-        v-on:change="updateFrames"
-      />
-      <p>Max pages: {{ totalFrames.length }}</p>
-
-      <label for="framesAmount"> Frames:</label>
-      <input
-        v-model="framesAmount"
-        type="range"
-        min="0"
-        :max="totalFrames.length"
-        v-on:change="updateFrames"
-      />
-      <input
+      <FlipSlider
         id="framesAmount"
         v-model="framesAmount"
-        type="number"
-        v-on:change="updateFrames"
-      />
-      <p>Max frames: {{ totalFrames.length }}</p>
-
-      <label for="startFrame"> Start:</label>
-      <input
-        id="startFrame"
-        v-model="startFrame"
-        type="number"
-        v-on:change="updateFrames"
-      />
-
-      <label for="endFrame"> End:</label>
-      <input id="endFrame" v-model="endFrame" type="number" v-on:change="updateFrames" />
+        label="Frames:"
+        :min="1"
+        :max="totalFrames.length"
+        :show-info="true"
+        @change="updateFrames"
+      >
+        <template #info>
+          <p>Max frames: {{ totalFrames.length }}</p>
+          <p>Current frames: {{ frames.length }}</p>
+        </template>
+      </FlipSlider>
     </section>
   </div>
 </template>
@@ -397,6 +428,28 @@ const printPreview = () => {
   position: absolute;
   z-index: -1;
   opacity: 0;
+}
+
+.sample-video {
+  text-align: center;
+  margin-top: 2em;
+  padding: 1em;
+  border-top: 1px solid var(--border-color, #ccc);
+}
+
+.sample-reference {
+  margin-top: 0.5em;
+  font-size: 0.9em;
+  opacity: 0.8;
+}
+
+.sample-reference a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.sample-reference a:hover {
+  text-decoration: underline;
 }
 
 .frame {
@@ -475,6 +528,16 @@ const printPreview = () => {
   margin: auto;
   border-radius: 50%;
   animation: rotate360 2s linear infinite;
+}
+
+.error {
+  text-align: center;
+  padding: 2em;
+  color: #ff6b6b;
+}
+
+.error p {
+  margin-bottom: 1em;
 }
 
 @keyframes rotate360 {
