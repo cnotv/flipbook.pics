@@ -166,14 +166,7 @@ const flipPages = () => {
  * Get actual frames from given video frames
  */
 const updateFrames = () => {
-  endFrame.value = endFrame.value || totalFrames.value.length;
-  const dividend = +(totalFrames.value.length / +framesAmount.value)
-    .toString()
-    .substring(0, 3);
-  console.log(dividend);
-  frames.value = totalFrames.value.filter((_, i) =>
-    Number.isInteger(i / dividend)
-  );
+  frames.value = totalFrames.value;
 };
 
 /**
@@ -285,12 +278,7 @@ const printPreview = () => {
 
     <section>
       <label for="pagesAmount">Pages:</label>
-      <input
-        v-model="pagesAmount"
-        type="range"
-        min="0"
-        :max="totalFrames.length"
-      />
+      <input v-model="pagesAmount" type="range" min="0" :max="totalFrames.length" />
       <input
         id="pagesAmount"
         v-model="pagesAmount"
@@ -324,12 +312,7 @@ const printPreview = () => {
       />
 
       <label for="endFrame"> End:</label>
-      <input
-        id="endFrame"
-        v-model="endFrame"
-        type="number"
-        v-on:change="updateFrames"
-      />
+      <input id="endFrame" v-model="endFrame" type="number" v-on:change="updateFrames" />
     </section>
   </div>
 </template>
