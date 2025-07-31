@@ -24,6 +24,7 @@ enum STATUS {
 }
 
 const framesAmount = ref("0");
+const playbackDelay = ref("0");
 const videoSrc = ref<string | null>();
 const cover = ref<string | null>();
 const video = ref<HTMLVideoElement>();
@@ -394,6 +395,23 @@ const printPreview = () => {
         <template #info>
           <p>Max frames: {{ totalFrames.length }}</p>
           <p>Current frames: {{ frames.length }}</p>
+        </template>
+      </FlipSlider>
+    </section>
+
+    <section>
+      <FlipSlider
+        id="playbackDelay"
+        v-model="playbackDelay"
+        label="Playback Delay:"
+        :min="0"
+        :max="2"
+        :step="0.1"
+        :show-info="true"
+      >
+        <template #info>
+          <p>Delay: {{ playbackDelay }}s</p>
+          <p>For playback speed only</p>
         </template>
       </FlipSlider>
     </section>
