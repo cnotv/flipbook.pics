@@ -9,6 +9,7 @@ import { ref } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
+import FlipFile from "../components/FlipFile.vue";
 
 interface VideoFrameMetadata {
   width: number;
@@ -341,50 +342,42 @@ const printPreview = () => {
             Print
           </FlipButton>
           <template v-if="!cover">
-            <label class="button actions__button" for="cover">+ Cover</label>
-            <input
-              class="file__input"
-              type="file"
+            <FlipFile
               id="cover"
               accept="image/*"
-              @change="handleCoverUpload($event)"
-            />
+              @change="handleCoverUpload"
+              class="cover-upload"
+            >
+              + Cover
+            </FlipFile>
           </template>
 
           <FlipButton v-if="cover" @click="cover = null"> - Cover </FlipButton>
         </div>
       </template>
 
-      <div class="file" v-if="status === STATUS.empty">
-        <label class="file__label" for="video">
-          <h2>Add Video +</h2>
-        </label>
-        <input
-          class="file__input"
-          type="file"
-          id="video"
-          accept="video/*"
-          @change="handleVideoUpload($event)"
-        />
-        <div class="sample-video">
-          <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
-          <p class="sample-reference">
-            <a
-              href="https://www.instagram.com/p/C25hJPEpJMk/"
-              target="_blank"
-              rel="noopener"
-            >
-              Reference: @kekeflipnote
-            </a>
-          </p>
-        </div>
-      </div>
+      <FlipFile id="video" accept="video/*" @change="handleVideoUpload">
+        <h2>Add Video +</h2>
+      </FlipFile>
 
       <div class="loader" v-if="status === STATUS.loading"></div>
 
       <div class="error" v-if="status === STATUS.error">
         <p>Error loading video. Please try again or upload a different video.</p>
         <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
+      </div>
+
+      <div class="sample-video">
+        <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
+        <p class="sample-reference">
+          <a
+            href="https://www.instagram.com/p/C25hJPEpJMk/"
+            target="_blank"
+            rel="noopener"
+          >
+            Reference: @kekeflipnote
+          </a>
+        </p>
       </div>
     </section>
 
