@@ -357,7 +357,12 @@ const printPreview = () => {
         </div>
       </template>
 
-      <FlipFile id="video" accept="video/*" @change="handleVideoUpload">
+      <FlipFile
+        v-if="status === STATUS.empty"
+        id="video"
+        accept="video/*"
+        @change="handleVideoUpload"
+      >
         <h2>Add Video +</h2>
       </FlipFile>
 
