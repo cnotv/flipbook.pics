@@ -128,6 +128,53 @@ const handleVideoUpload = (event: Event) => {
 };
 
 /**
+ * Load sample video kekeflipnote.mp4
+ * Reference: https://www.instagram.com/p/C25hJPEpJMk/
+ */
+const loadSampleVideo = async () => {
+  status.value = STATUS.loading;
+
+  try {
+    // Set the video source
+    videoSrc.value = "/kekeflipnote.mp4";
+    status.value = STATUS.loaded;
+
+    // Wait for Vue to update the DOM
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const videoEl = video.value;
+    if (videoEl) {
+      // Ensure video loads the new source
+      videoEl.load();
+
+      // Wait for video to be ready
+      await new Promise((resolve, reject) => {
+        const handleLoad = () => {
+          videoEl.removeEventListener("canplay", handleLoad);
+          videoEl.removeEventListener("error", handleError);
+          resolve(undefined);
+        };
+
+        const handleError = (error: Event) => {
+          videoEl.removeEventListener("canplay", handleLoad);
+          videoEl.removeEventListener("error", handleError);
+          reject(error);
+        };
+
+        videoEl.addEventListener("canplay", handleLoad);
+        videoEl.addEventListener("error", handleError);
+      });
+
+      // Now generate frames
+      generateFrames();
+    }
+  } catch (error) {
+    console.error("Error loading sample video:", error);
+    status.value = STATUS.error;
+  }
+};
+
+/**
  * Generate frames from videos from given uploaded video file
  */
 const generateFrames = () => {
@@ -271,6 +318,18 @@ const printPreview = () => {
           accept="video/*"
           @change="handleVideoUpload($event)"
         />
+        <div class="sample-video">
+          <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
+          <p class="sample-reference">
+            <a
+              href="https://www.instagram.com/p/C25hJPEpJMk/"
+              target="_blank"
+              rel="noopener"
+            >
+              Reference: @kekeflipnote
+            </a>
+          </p>
+        </div>
       </div>
 
       <div class="loader" v-if="status === STATUS.loading"></div>
