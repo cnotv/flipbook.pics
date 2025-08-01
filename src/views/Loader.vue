@@ -25,6 +25,7 @@ enum STATUS {
 
 const framesAmount = ref("0");
 const playbackDelay = ref("0");
+const currentFrameIndex = ref(0);
 const videoSrc = ref<string | null>();
 const cover = ref<string | null>();
 const video = ref<HTMLVideoElement>();
@@ -217,6 +218,7 @@ const resetVideo = () => {
   videoSrc.value = null;
   totalFrames.value = [];
   frames.value = [];
+  currentFrameIndex.value = 0;
 };
 
 /**
@@ -224,6 +226,24 @@ const resetVideo = () => {
  */
 const flipPages = () => {
   generateFrames();
+};
+
+/**
+ * Navigate to previous frame
+ */
+const previousFrame = () => {
+  if (currentFrameIndex.value > 0) {
+    currentFrameIndex.value--;
+  }
+};
+
+/**
+ * Navigate to next frame
+ */
+const nextFrame = () => {
+  if (currentFrameIndex.value < frames.value.length - 1) {
+    currentFrameIndex.value++;
+  }
 };
 
 /**
@@ -257,6 +277,9 @@ const updateFrames = () => {
   }
 
   frames.value = sampledFrames;
+
+  // Reset current frame index when frames change
+  currentFrameIndex.value = 0;
 };
 
 /**
@@ -326,17 +349,27 @@ const printPreview = () => {
             :src="cover"
             alt="Cover"
           />
+          <!-- Show current frame when navigating manually -->
+          <img
+            v-if="frames.length > 0"
+            class="frames__item frames__item--current"
+            :src="frames[currentFrameIndex]"
+            alt="Current frame"
+          />
+          <!-- Show stack effect for remaining frames -->
           <img
             class="frames__item"
             :class="{ 'frames__item--flipped': index < frames.length - 1 }"
             :style="{
               zIndex: -index,
               display: index < frames.length - 10 ? 'none' : 'block',
+              opacity:
+                index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
             }"
             :src="frame"
             alt=""
             v-for="(frame, index) in frames"
-            :key="index"
+            :key="`stack-${index}`"
           />
         </div>
         <video ref="video" class="video" muted>
@@ -354,18 +387,32 @@ const printPreview = () => {
           <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
             Print
           </FlipButton>
-          <template v-if="!cover">
-            <FlipFile
-              id="cover"
-              accept="image/*"
-              @change="handleCoverUpload"
-              class="cover-upload"
-            >
-              + Cover
-            </FlipFile>
-          </template>
 
-          <FlipButton v-if="cover" @click="cover = null"> - Cover </FlipButton>
+          <!-- Frame navigation -->
+          <div class="frame-navigation" v-if="frames.length > 0">
+            <FlipButton :disabled="currentFrameIndex === 0" @click="previousFrame()">
+              ←
+            </FlipButton>
+            <div class="frame-counter">
+              {{ currentFrameIndex + 1 }} / {{ frames.length }}
+            </div>
+            <FlipButton
+              :disabled="currentFrameIndex >= frames.length - 1"
+              @click="nextFrame()"
+            >
+              →
+            </FlipButton>
+          </div>
+
+          <FlipFile
+            v-if="!cover"
+            id="cover"
+            accept="image/*"
+            @change="handleCoverUpload"
+            class="cover-upload"
+            >+ Cover</FlipFile
+          >
+          <FlipButton v-else @click="cover = null"> - Cover </FlipButton>
         </div>
       </template>
 
@@ -440,22 +487,8 @@ const printPreview = () => {
   --video-ratio: 9 / 16;
   --frame-padding: 50px;
   --frame-width: 560px;
+  --actions-width: 200px;
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
-}
-
-.file {
-  position: relative;
-}
-.file__label {
-  display: block;
-  text-align: center;
-  line-height: var(--frame-height);
-}
-
-.file__input {
-  position: absolute;
-  z-index: -1;
-  opacity: 0;
 }
 
 .sample-video {
@@ -541,6 +574,44 @@ const printPreview = () => {
 
 .actions {
   display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.actions .flip-button {
+  flex: 1;
+  font-size: 0.9em;
+  padding: 0.75em 1em;
+}
+
+.frame-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: 1;
+}
+
+.frame-navigation .flip-button {
+  flex: 1;
+  padding: 0.75em 0.5em;
+  font-size: 0.9em;
+}
+
+.frame-counter {
+  font-size: 0.9em;
+  font-weight: 600;
+  padding: 0.75em 1em;
+  background: var(--main-color, #00b894);
+  color: white;
+  border-radius: var(--border-radius, 4px);
+  text-align: center;
+  border: none;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.frames__item--current {
+  z-index: 2 !important;
 }
 
 .loader {
@@ -583,14 +654,10 @@ const printPreview = () => {
   }
 
   .actions {
-    flex-direction: column;
-    gap: 1em;
     position: absolute;
     top: 0;
-    height: 3em;
-    border: none;
-    right: -23%;
-    width: 130px;
+    right: calc(var(--actions-width) * -1);
+    width: var(--actions-width);
   }
 }
 @media (max-width: 1024px) {
@@ -598,8 +665,36 @@ const printPreview = () => {
     margin-top: 4em;
     flex-direction: row;
     gap: 0.2em;
-    height: 3em;
-    border: none;
   }
+}
+
+/* Cover upload styling */
+.cover-upload .flip-file__label {
+  line-height: inherit;
+  background: var(--main-color, #00b894);
+  color: white;
+  padding: 0.75em 1em;
+  border-radius: var(--border-radius, 4px);
+  font-weight: 600;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  flex: 1;
+}
+
+.cover-upload .flip-file__label:hover {
+  background: var(--main-color-dark, #00a085);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+}
+
+.cover-upload .flip-file__label:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.2);
 }
 </style>
