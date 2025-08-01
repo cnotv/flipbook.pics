@@ -44,8 +44,20 @@ const getFrame = async (
 ) => {
   // Update aspect ratio based on actual video dimensions
   videoAspectRatio.value = width / height;
-  await drawFrame(width, height, canvas.value!);
-  updateFrames();
+
+  // Add visual delay for frame processing if specified
+  const delay = parseFloat(playbackDelay.value) * 1000; // Convert to milliseconds
+  if (delay > 0) {
+    setTimeout(async () => {
+      await drawFrame(width, height, canvas.value!);
+      updateFrames();
+    }, delay);
+  } else {
+    await drawFrame(width, height, canvas.value!);
+    updateFrames();
+  }
+
+  // Always request next frame immediately to keep video playing
   if (!video.value!.ended) {
     video.value!["requestVideoFrameCallback"](getFrame);
   } else {
