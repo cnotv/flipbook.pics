@@ -10,6 +10,11 @@ import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
+import { 
+  calculateTargetFrameTimes, 
+  shouldCaptureFrame, 
+  calculateOptimalPlaybackRate 
+} from "../helper/frameGeneration";
 
 interface VideoFrameMetadata {
   width: number;
@@ -72,8 +77,11 @@ const totalTime = computed(() => {
   return formatTime(videoDuration.value);
 });
 
+const targetFrameTimes = ref<number[]>([]);
+const currentTargetIndex = ref(0);
+
 /**
- * Video callback loop for capturing frames
+ * Video callback loop for capturing frames at precise time intervals
  */
 const getFrame = async (
   _: DOMHighResTimeStamp,
@@ -82,23 +90,33 @@ const getFrame = async (
   // Update aspect ratio based on actual video dimensions
   videoAspectRatio.value = width / height;
 
-  // Add visual delay for frame processing if specified
-  const delay = parseFloat(playbackSpeed.value) * 1000; // Convert to milliseconds
-  if (delay > 0) {
-    setTimeout(async () => {
+  const videoEl = video.value!;
+  const currentTime = videoEl.currentTime;
+  
+  // Check if we should capture this frame using utility function
+  if (shouldCaptureFrame(currentTime, targetFrameTimes.value, currentTargetIndex.value)) {
+    // Add visual delay for frame processing if specified
+    const delay = parseFloat(playbackSpeed.value) * 1000; // Convert to milliseconds
+    if (delay > 0) {
+      setTimeout(async () => {
+        await drawFrame(width, height, canvas.value!);
+      }, delay);
+    } else {
       await drawFrame(width, height, canvas.value!);
-      updateFrames();
-    }, delay);
-  } else {
-    await drawFrame(width, height, canvas.value!);
-    updateFrames();
+    }
+    
+    currentTargetIndex.value++;
   }
 
-  // Always request next frame immediately to keep video playing
-  if (!video.value!.ended) {
-    video.value!["requestVideoFrameCallback"](getFrame);
+  // Continue until video ends or all target frames captured
+  if (
+    !videoEl.ended &&
+    currentTargetIndex.value < targetFrameTimes.value.length
+  ) {
+    videoEl["requestVideoFrameCallback"](getFrame);
   } else {
-    updateFrames(); // Update frames one more time with the final count
+    // Final update when done
+    updateFrames();
   }
 };
 
@@ -234,15 +252,26 @@ const loadSampleVideo = async () => {
  */
 const generateFrames = () => {
   totalFrames.value = [];
+  currentTargetIndex.value = 0;
+  
   const videoEl = video.value;
   if (videoEl) {
     // Wait for video metadata to load to get accurate dimensions and duration
     videoEl.addEventListener("loadedmetadata", () => {
       videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
       videoDuration.value = videoEl.duration;
+      
+      // Calculate deterministic frame capture times using utility function
+      const targetFps = parseInt(fps.value) || 30;
+      targetFrameTimes.value = calculateTargetFrameTimes(videoEl.duration, targetFps);
+      
+      // Reset video to start and begin capture
+      videoEl.currentTime = 0;
+      
+      // Calculate optimal playback rate for consistent processing
+      videoEl.playbackRate = calculateOptimalPlaybackRate(videoEl.duration, targetFps);
     });
 
-    videoEl.playbackRate = 10.0;
     videoEl.play();
     videoEl["requestVideoFrameCallback"](getFrame);
   }
@@ -258,6 +287,8 @@ const resetVideo = () => {
   frames.value = [];
   currentFrameIndex.value = 0;
   videoDuration.value = 0; // Reset duration to 0
+  targetFrameTimes.value = [];
+  currentTargetIndex.value = 0;
 };
 
 /**
@@ -286,37 +317,13 @@ const nextFrame = () => {
 };
 
 /**
- * Get actual frames from given video frames, sampling evenly based on fps
+ * Update frames array with captured frames - now deterministic based on time intervals
  */
 const updateFrames = () => {
-  const targetFrameCount = Math.max(1, parseInt(fps.value) || 1);
-  const totalFrameCount = totalFrames.value.length;
-
-  if (totalFrameCount === 0) {
-    frames.value = [];
-    return;
-  }
-
-  // Ensure fps doesn't exceed total frames
-  const actualTargetCount = Math.min(targetFrameCount, totalFrameCount);
-
-  if (actualTargetCount >= totalFrameCount) {
-    // If target is greater than or equal to total, use all frames
-    frames.value = [...totalFrames.value];
-    return;
-  }
-
-  // Sample frames evenly across the video to maintain consistency
-  const sampledFrames: string[] = [];
-  const step = totalFrameCount / actualTargetCount;
-
-  for (let i = 0; i < actualTargetCount; i++) {
-    const frameIndex = Math.floor(i * step);
-    sampledFrames.push(totalFrames.value[frameIndex]);
-  }
-
-  frames.value = sampledFrames;
-
+  // With our new deterministic approach, totalFrames already contains
+  // the exact frames we want based on the FPS setting and precise timing
+  frames.value = [...totalFrames.value];
+  
   // Reset current frame index when frames change
   currentFrameIndex.value = 0;
 };
