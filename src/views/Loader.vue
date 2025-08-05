@@ -5,15 +5,15 @@
  * VideoDecoder? https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
-import { 
-  calculateTargetFrameTimes, 
-  shouldCaptureFrame, 
-  calculateOptimalPlaybackRate 
+import {
+  calculateTargetFrameTimes,
+  shouldCaptureFrame,
+  calculateOptimalPlaybackRate,
 } from "../helper/frameGeneration";
 
 interface VideoFrameMetadata {
@@ -80,6 +80,53 @@ const totalTime = computed(() => {
 const targetFrameTimes = ref<number[]>([]);
 const currentTargetIndex = ref(0);
 
+// Animation state for frame playback
+const isPlaying = ref(false);
+const playInterval = ref<NodeJS.Timeout | null>(null);
+
+/**
+ * Calculate animation interval based on playback speed
+ */
+const calculateAnimationInterval = (speed: number): number => {
+  // Base interval of 100ms (10 FPS), modified by speed
+  // Positive speed = faster, negative speed = slower
+  // Speed 0 = default (100ms), Speed 1 = 50ms, Speed -1 = 200ms
+  if (speed === 0) {
+    return 100; // Default: 10 FPS
+  } else if (speed > 0) {
+    // Faster playback: reduce interval (min 16ms = ~60 FPS)
+    return Math.max(16, 100 / (1 + speed));
+  } else {
+    // Slower playback: increase interval (max 2000ms = 0.5 FPS)
+    return Math.min(2000, 100 * (1 + Math.abs(speed)));
+  }
+};
+
+/**
+ * Watch playback speed changes and update animation in real-time
+ */
+watch(playbackSpeed, (newSpeed) => {
+  // Only update if currently playing
+  if (isPlaying.value && playInterval.value) {
+    // Clear current interval
+    clearInterval(playInterval.value);
+    
+    // Calculate new interval
+    const speed = parseFloat(newSpeed) || 0;
+    const intervalMs = calculateAnimationInterval(speed);
+    
+    // Start new interval with updated speed
+    playInterval.value = setInterval(() => {
+      // Move to next frame, loop back to start when reaching the end
+      if (currentFrameIndex.value < frames.value.length - 1) {
+        currentFrameIndex.value++;
+      } else {
+        currentFrameIndex.value = 0; // Loop back to first frame
+      }
+    }, intervalMs);
+  }
+});
+
 /**
  * Video callback loop for capturing frames at precise time intervals
  */
@@ -92,27 +139,16 @@ const getFrame = async (
 
   const videoEl = video.value!;
   const currentTime = videoEl.currentTime;
-  
+
   // Check if we should capture this frame using utility function
   if (shouldCaptureFrame(currentTime, targetFrameTimes.value, currentTargetIndex.value)) {
-    // Add visual delay for frame processing if specified
-    const delay = parseFloat(playbackSpeed.value) * 1000; // Convert to milliseconds
-    if (delay > 0) {
-      setTimeout(async () => {
-        await drawFrame(width, height, canvas.value!);
-      }, delay);
-    } else {
-      await drawFrame(width, height, canvas.value!);
-    }
-    
+    // Process frame immediately during video capture
+    await drawFrame(width, height, canvas.value!);
     currentTargetIndex.value++;
   }
 
   // Continue until video ends or all target frames captured
-  if (
-    !videoEl.ended &&
-    currentTargetIndex.value < targetFrameTimes.value.length
-  ) {
+  if (!videoEl.ended && currentTargetIndex.value < targetFrameTimes.value.length) {
     videoEl["requestVideoFrameCallback"](getFrame);
   } else {
     // Final update when done
@@ -253,21 +289,21 @@ const loadSampleVideo = async () => {
 const generateFrames = () => {
   totalFrames.value = [];
   currentTargetIndex.value = 0;
-  
+
   const videoEl = video.value;
   if (videoEl) {
     // Wait for video metadata to load to get accurate dimensions and duration
     videoEl.addEventListener("loadedmetadata", () => {
       videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
       videoDuration.value = videoEl.duration;
-      
+
       // Calculate deterministic frame capture times using utility function
       const targetFps = parseInt(fps.value) || 30;
       targetFrameTimes.value = calculateTargetFrameTimes(videoEl.duration, targetFps);
-      
+
       // Reset video to start and begin capture
       videoEl.currentTime = 0;
-      
+
       // Calculate optimal playback rate for consistent processing
       videoEl.playbackRate = calculateOptimalPlaybackRate(videoEl.duration, targetFps);
     });
@@ -281,6 +317,13 @@ const generateFrames = () => {
  * Reset stored video information
  */
 const resetVideo = () => {
+  // Stop any playing animation
+  if (playInterval.value) {
+    clearInterval(playInterval.value);
+    playInterval.value = null;
+  }
+  isPlaying.value = false;
+
   status.value = STATUS.empty;
   videoSrc.value = null;
   totalFrames.value = [];
@@ -292,16 +335,48 @@ const resetVideo = () => {
 };
 
 /**
- * Flip pages again
+ * Toggle frame playback - start/stop looping through frames
  */
-const flipPages = () => {
-  generateFrames();
+const togglePlay = () => {
+  if (isPlaying.value) {
+    // Stop playing
+    if (playInterval.value) {
+      clearInterval(playInterval.value);
+      playInterval.value = null;
+    }
+    isPlaying.value = false;
+  } else {
+    // Start playing
+    if (frames.value.length > 0) {
+      isPlaying.value = true;
+
+      // Calculate interval based on playback speed slider using helper function
+      const speed = parseFloat(playbackSpeed.value) || 0;
+      const intervalMs = calculateAnimationInterval(speed);
+
+      playInterval.value = setInterval(() => {
+        // Move to next frame, loop back to start when reaching the end
+        if (currentFrameIndex.value < frames.value.length - 1) {
+          currentFrameIndex.value++;
+        } else {
+          currentFrameIndex.value = 0; // Loop back to first frame
+        }
+      }, intervalMs);
+    }
+  }
 };
 
 /**
  * Navigate to previous frame
  */
 const previousFrame = () => {
+  // Stop playing when manually navigating
+  if (playInterval.value) {
+    clearInterval(playInterval.value);
+    playInterval.value = null;
+  }
+  isPlaying.value = false;
+
   if (currentFrameIndex.value > 0) {
     currentFrameIndex.value--;
   }
@@ -311,6 +386,13 @@ const previousFrame = () => {
  * Navigate to next frame
  */
 const nextFrame = () => {
+  // Stop playing when manually navigating
+  if (playInterval.value) {
+    clearInterval(playInterval.value);
+    playInterval.value = null;
+  }
+  isPlaying.value = false;
+
   if (currentFrameIndex.value < frames.value.length - 1) {
     currentFrameIndex.value++;
   }
@@ -320,10 +402,17 @@ const nextFrame = () => {
  * Update frames array with captured frames - now deterministic based on time intervals
  */
 const updateFrames = () => {
+  // Stop any playing animation when frames change
+  if (playInterval.value) {
+    clearInterval(playInterval.value);
+    playInterval.value = null;
+  }
+  isPlaying.value = false;
+
   // With our new deterministic approach, totalFrames already contains
   // the exact frames we want based on the FPS setting and precise timing
   frames.value = [...totalFrames.value];
-  
+
   // Reset current frame index when frames change
   currentFrameIndex.value = 0;
 };
@@ -432,8 +521,8 @@ const printPreview = () => {
         <!-- Actions -->
         <div class="actions">
           <FlipButton @click="resetVideo()">X</FlipButton>
-          <FlipButton :disabled="!totalFrames.length" @click="flipPages()">
-            >
+          <FlipButton :disabled="!totalFrames.length" @click="togglePlay()">
+            {{ isPlaying ? "⏸" : "▶" }}
           </FlipButton>
           <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
             Print
@@ -513,9 +602,9 @@ const printPreview = () => {
     <FlipSlider
       id="playbackSpeed"
       v-model="playbackSpeed"
-      label="Playback delay:"
-      :min="0"
-      :max="2"
+      label="Playback speed:"
+      :min="-10"
+      :max="10"
       :step="0.1"
     ></FlipSlider>
   </div>
