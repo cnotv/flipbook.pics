@@ -5,7 +5,7 @@
  * VideoDecoder? https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
@@ -23,9 +23,10 @@ enum STATUS {
   error,
 }
 
-const framesAmount = ref("0");
-const playbackDelay = ref("0");
+const fps = ref("30");
+const playbackSpeed = ref("0");
 const currentFrameIndex = ref(0);
+const videoDuration = ref(0);
 const videoSrc = ref<string | null>();
 const cover = ref<string | null>();
 const video = ref<HTMLVideoElement>();
@@ -35,6 +36,41 @@ const canvas = ref<HTMLCanvasElement>();
 const totalFrames = ref<string[]>([]);
 const frames = ref<string[]>([]);
 const videoAspectRatio = ref<number>(16 / 9); // Default aspect ratio
+
+/**
+ * Format time in seconds to MM:SS.mmm format (with milliseconds)
+ */
+const formatTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  const wholeSeconds = Math.floor(remainingSeconds);
+  const milliseconds = Math.floor((remainingSeconds - wholeSeconds) * 1000);
+
+  return `${minutes}:${wholeSeconds
+    .toString()
+    .padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
+};
+
+/**
+ * Calculate current time based on frame position within the video duration
+ */
+const currentTime = computed(() => {
+  if (frames.value.length === 0 || videoDuration.value === 0) {
+    return formatTime(0);
+  }
+
+  // Calculate the time position based on current frame relative to total frames
+  const timeInSeconds =
+    (currentFrameIndex.value / (frames.value.length - 1)) * videoDuration.value;
+  return formatTime(timeInSeconds);
+});
+
+/**
+ * Calculate total video time from the video duration
+ */
+const totalTime = computed(() => {
+  return formatTime(videoDuration.value);
+});
 
 /**
  * Video callback loop for capturing frames
@@ -47,7 +83,7 @@ const getFrame = async (
   videoAspectRatio.value = width / height;
 
   // Add visual delay for frame processing if specified
-  const delay = parseFloat(playbackDelay.value) * 1000; // Convert to milliseconds
+  const delay = parseFloat(playbackSpeed.value) * 1000; // Convert to milliseconds
   if (delay > 0) {
     setTimeout(async () => {
       await drawFrame(width, height, canvas.value!);
@@ -62,8 +98,6 @@ const getFrame = async (
   if (!video.value!.ended) {
     video.value!["requestVideoFrameCallback"](getFrame);
   } else {
-    // Video has ended, set framesAmount to total frames generated
-    framesAmount.value = totalFrames.value.length.toString();
     updateFrames(); // Update frames one more time with the final count
   }
 };
@@ -165,21 +199,24 @@ const loadSampleVideo = async () => {
       // Ensure video loads the new source
       videoEl.load();
 
-      // Wait for video to be ready
+      // Wait for video metadata to be loaded (this ensures duration is available)
       await new Promise((resolve, reject) => {
-        const handleLoad = () => {
-          videoEl.removeEventListener("canplay", handleLoad);
+        const handleMetadata = () => {
+          videoEl.removeEventListener("loadedmetadata", handleMetadata);
           videoEl.removeEventListener("error", handleError);
+          // Capture duration and aspect ratio immediately
+          videoDuration.value = videoEl.duration;
+          videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
           resolve(undefined);
         };
 
         const handleError = (error: Event) => {
-          videoEl.removeEventListener("canplay", handleLoad);
+          videoEl.removeEventListener("loadedmetadata", handleMetadata);
           videoEl.removeEventListener("error", handleError);
           reject(error);
         };
 
-        videoEl.addEventListener("canplay", handleLoad);
+        videoEl.addEventListener("loadedmetadata", handleMetadata);
         videoEl.addEventListener("error", handleError);
       });
 
@@ -199,9 +236,10 @@ const generateFrames = () => {
   totalFrames.value = [];
   const videoEl = video.value;
   if (videoEl) {
-    // Wait for video metadata to load to get accurate dimensions
+    // Wait for video metadata to load to get accurate dimensions and duration
     videoEl.addEventListener("loadedmetadata", () => {
       videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
+      videoDuration.value = videoEl.duration;
     });
 
     videoEl.playbackRate = 10.0;
@@ -219,6 +257,7 @@ const resetVideo = () => {
   totalFrames.value = [];
   frames.value = [];
   currentFrameIndex.value = 0;
+  videoDuration.value = 0; // Reset duration to 0
 };
 
 /**
@@ -247,10 +286,10 @@ const nextFrame = () => {
 };
 
 /**
- * Get actual frames from given video frames, sampling evenly based on framesAmount
+ * Get actual frames from given video frames, sampling evenly based on fps
  */
 const updateFrames = () => {
-  const targetFrameCount = Math.max(1, parseInt(framesAmount.value) || 1);
+  const targetFrameCount = Math.max(1, parseInt(fps.value) || 1);
   const totalFrameCount = totalFrames.value.length;
 
   if (totalFrameCount === 0) {
@@ -258,7 +297,7 @@ const updateFrames = () => {
     return;
   }
 
-  // Ensure framesAmount doesn't exceed total frames
+  // Ensure fps doesn't exceed total frames
   const actualTargetCount = Math.min(targetFrameCount, totalFrameCount);
 
   if (actualTargetCount >= totalFrameCount) {
@@ -349,6 +388,7 @@ const printPreview = () => {
             :src="cover"
             alt="Cover"
           />
+
           <!-- Show current frame when navigating manually -->
           <img
             v-if="frames.length > 0"
@@ -356,6 +396,7 @@ const printPreview = () => {
             :src="frames[currentFrameIndex]"
             alt="Current frame"
           />
+
           <!-- Show stack effect for remaining frames -->
           <img
             class="frames__item"
@@ -372,6 +413,8 @@ const printPreview = () => {
             :key="`stack-${index}`"
           />
         </div>
+
+        <!-- Video and canvas for frame capture -->
         <video ref="video" class="video" muted>
           <source :src="videoSrc" type="video/mp4" />
           <source :src="videoSrc" type="video/webm" />
@@ -379,6 +422,7 @@ const printPreview = () => {
         </video>
         <canvas class="canvas" ref="canvas"></canvas>
 
+        <!-- Actions -->
         <div class="actions">
           <FlipButton @click="resetVideo()">X</FlipButton>
           <FlipButton :disabled="!totalFrames.length" @click="flipPages()">
@@ -394,7 +438,10 @@ const printPreview = () => {
               ←
             </FlipButton>
             <div class="frame-counter">
-              {{ currentFrameIndex + 1 }} / {{ frames.length }}
+              <div class="frame-count">
+                {{ currentFrameIndex + 1 }} / {{ frames.length }}
+              </div>
+              <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
             </div>
             <FlipButton
               :disabled="currentFrameIndex >= frames.length - 1"
@@ -446,39 +493,24 @@ const printPreview = () => {
       </div>
     </section>
 
-    <section>
-      <FlipSlider
-        id="framesAmount"
-        v-model="framesAmount"
-        label="Frames:"
-        :min="1"
-        :max="totalFrames.length"
-        :show-info="true"
-        @change="updateFrames"
-      >
-        <template #info>
-          <p>Max frames: {{ totalFrames.length }}</p>
-          <p>Current frames: {{ frames.length }}</p>
-        </template>
-      </FlipSlider>
-    </section>
+    <FlipSlider
+      id="fps"
+      v-model="fps"
+      label="FPS:"
+      :min="1"
+      :max="120"
+      @change="updateFrames"
+    >
+    </FlipSlider>
 
-    <section>
-      <FlipSlider
-        id="playbackDelay"
-        v-model="playbackDelay"
-        label="Playback Delay:"
-        :min="0"
-        :max="2"
-        :step="0.1"
-        :show-info="true"
-      >
-        <template #info>
-          <p>Delay: {{ playbackDelay }}s</p>
-          <p>For playback speed only</p>
-        </template>
-      </FlipSlider>
-    </section>
+    <FlipSlider
+      id="playbackSpeed"
+      v-model="playbackSpeed"
+      label="Playback delay:"
+      :min="0"
+      :max="2"
+      :step="0.1"
+    ></FlipSlider>
   </div>
 </template>
 
@@ -608,6 +640,18 @@ const printPreview = () => {
   border: none;
   transition: all 0.2s ease;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+}
+
+.frame-count {
+  font-weight: 700;
+}
+
+.time-display {
+  font-size: 0.8em;
+  opacity: 0.9;
 }
 
 .frames__item--current {
@@ -688,13 +732,11 @@ const printPreview = () => {
 }
 
 .cover-upload .flip-file__label:hover {
-  background: var(--main-color-dark, #00a085);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 184, 148, 0.3);
+  background: var(--main-color, #00b894);
+  transform: translateY(-1px);
 }
 
 .cover-upload .flip-file__label:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(0, 184, 148, 0.2);
 }
 </style>
