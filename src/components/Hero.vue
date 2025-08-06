@@ -1,15 +1,13 @@
 <script setup lang="ts">
 defineProps<{
-  msg: string
-}>()
+  msg: string;
+}>();
 </script>
 
 <template>
   <div class="greetings">
     <h1 class="green">{{ msg }}</h1>
-    <h3>
-      Create your flipbook from your own videos!
-    </h3>
+    <h3>Create your flipbook from your own videos!</h3>
   </div>
 </template>
 

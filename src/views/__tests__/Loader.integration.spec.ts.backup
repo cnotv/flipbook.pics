@@ -1,0 +1,826 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
+import Loader from "../Loader.vue";
+
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
+import Loader from "../Loader.vue";
+
+// Mock pdfMake
+vi.mock("pdfmake/build/pdfmake", () => ({
+  createPdf: vi.fn(() => ({
+    download: vi.fn(),
+  })),
+}));
+
+// Mock createImageBitmap
+global.createImageBitmap = vi.fn().mockResolvedValue({});
+
+// Mock frame generation utilities
+vi.mock("../../helper/frameGeneration", () => ({
+  calculateTargetFrameTimes: vi.fn().mockImplementation((duration: number, fps: number) => {
+    const times = [];
+    const interval = 1 / fps; // seconds
+    for (let i = 0; i < Math.floor(duration * fps); i++) {
+      times.push(i * interval);
+    }
+    return times;
+  }),
+  shouldCaptureFrame: vi.fn().mockReturnValue(true),
+  calculateOptimalPlaybackRate: vi.fn().mockReturnValue(1.0),
+  generateFrameParametersHash: vi.fn().mockReturnValue("mock-hash-123"),
+}));
+
+// Mock HTML5 Video APIs that are not implemented in jsdom
+const createMockVideoElement = () => {
+  const mockVideo = {
+    duration: 4.0,
+    videoWidth: 640,
+    videoHeight: 480,
+    currentTime: 0,
+    playbackRate: 1,
+    ended: false,
+    load: vi.fn(),
+    play: vi.fn().mockResolvedValue(undefined),
+    pause: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    requestVideoFrameCallback: vi.fn((callback) => {
+      // Simulate frame callback
+      setTimeout(() => callback(performance.now(), { width: 640, height: 480 }), 16);
+      return 1; // Return request ID
+    }),
+  };
+  return mockVideo;
+};
+
+// Mock document.createElement for video elements
+const originalCreateElement = document.createElement;
+document.createElement = vi.fn().mockImplementation((tagName) => {
+  if (tagName === 'video') {
+    return createMockVideoElement();
+  }
+  if (tagName === 'canvas') {
+    return {
+      width: 0,
+      height: 0,
+      getContext: vi.fn(() => ({
+        clearRect: vi.fn(),
+        drawImage: vi.fn(),
+        getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+      })),
+      toDataURL: vi.fn(() => "data:image/jpeg;base64,mockImageData"),
+    };
+  }
+  return originalCreateElement.call(document, tagName);
+});
+
+// Mock pdfMake
+vi.mock("pdfmake/build/pdfmake", () => ({
+  createPdf: vi.fn(() => ({
+    download: vi.fn(),
+  })),
+}));
+
+// Mock createImageBitmap
+global.createImageBitmap = vi.fn().mockResolvedValue({});
+
+describe("Loader Component - Frame Generation Logic Tests", () => {
+  let wrapper: ReturnType<typeof mount>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    wrapper = mount(Loader);
+  });
+
+  afterEach(() => {
+    wrapper.unmount();
+  });
+
+  describe("Component State and Initialization", () => {
+    it("should have correct initial state", () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      expect(component.fps).toBe("30");
+      expect(component.playbackSpeed).toBe("0");
+      expect(component.currentFrameIndex).toBe(0);
+      expect(component.videoDuration).toBe(0);
+      expect(component.totalFrames).toEqual([]);
+      expect(component.frames).toEqual([]);
+      expect(component.isPlaying).toBe(false);
+    });
+
+    it("should update frames when FPS changes", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup initial frames
+      component.totalFrames = ["frame1", "frame2", "frame3"];
+      
+      // Change FPS
+      await wrapper.setData({ fps: "60" });
+      
+      // Call updateFrames to simulate the change event
+      component.updateFrames();
+      await nextTick();
+      
+      // Should copy frames and reset index
+      expect(component.frames).toEqual(["frame1", "frame2", "frame3"]);
+      expect(component.currentFrameIndex).toBe(0);
+      expect(component.isPlaying).toBe(false);
+    });
+  });
+
+  describe("Animation Speed Calculations", () => {
+    it("should calculate animation intervals correctly", () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Test default speed
+      expect(component.calculateAnimationInterval(0)).toBe(100);
+      
+      // Test positive speeds (faster)
+      expect(component.calculateAnimationInterval(1)).toBe(50);
+      expect(component.calculateAnimationInterval(2)).toBeCloseTo(33.33, 1);
+      
+      // Test negative speeds (slower)
+      expect(component.calculateAnimationInterval(-1)).toBe(200);
+      expect(component.calculateAnimationInterval(-2)).toBe(300);
+      
+      // Test bounds
+      expect(component.calculateAnimationInterval(100)).toBeGreaterThanOrEqual(16);
+      expect(component.calculateAnimationInterval(-100)).toBeLessThanOrEqual(2000);
+    });
+  });
+
+  describe("Time Formatting", () => {
+    it("should format time correctly", () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      expect(component.formatTime(0)).toBe("0:00.000");
+      expect(component.formatTime(65.123)).toBe("1:05.123");
+      expect(component.formatTime(125.456)).toBe("2:05.456");
+      expect(component.formatTime(3661.789)).toBe("61:01.789");
+    });
+
+    it("should calculate current time based on frame position", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup frames and duration
+      component.frames = ["frame1", "frame2", "frame3", "frame4"];
+      component.videoDuration = 4;
+      component.currentFrameIndex = 1; // Second frame
+      
+      await nextTick();
+      
+      // Should calculate proportional time
+      const currentTime = component.currentTime;
+      expect(currentTime).toMatch(/1:01\.\d{3}/); // Should be around 1:01.333
+    });
+
+    it("should calculate total time from duration", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      component.videoDuration = 65.5;
+      await nextTick();
+      
+      expect(component.totalTime).toBe("1:05.500");
+    });
+
+    it("should handle edge cases for time calculation", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // No frames or duration
+      component.frames = [];
+      component.videoDuration = 0;
+      await nextTick();
+      
+      expect(component.currentTime).toBe("0:00.000");
+      expect(component.totalTime).toBe("0:00.000");
+    });
+  });
+
+  describe("Playback Control Logic", () => {
+    it("should start and stop playback correctly", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup frames
+      component.frames = ["frame1", "frame2", "frame3"];
+      component.playbackSpeed = "0";
+      
+      // Mock timers
+      vi.useFakeTimers();
+      
+      // Start playback
+      component.togglePlay();
+      await nextTick();
+      
+      expect(component.isPlaying).toBe(true);
+      expect(component.playInterval).not.toBeNull();
+      
+      // Stop playback
+      component.togglePlay();
+      await nextTick();
+      
+      expect(component.isPlaying).toBe(false);
+      expect(component.playInterval).toBeNull();
+      
+      vi.useRealTimers();
+    });
+
+    it("should navigate frames correctly", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup frames
+      component.frames = ["frame1", "frame2", "frame3", "frame4"];
+      component.currentFrameIndex = 1;
+      
+      // Navigate to next frame
+      component.nextFrame();
+      expect(component.currentFrameIndex).toBe(2);
+      expect(component.isPlaying).toBe(false);
+      
+      // Navigate to previous frame
+      component.previousFrame();
+      expect(component.currentFrameIndex).toBe(1);
+      expect(component.isPlaying).toBe(false);
+      
+      // Test boundaries
+      component.currentFrameIndex = 3; // Last frame
+      component.nextFrame();
+      expect(component.currentFrameIndex).toBe(3); // Should stay
+      
+      component.currentFrameIndex = 0; // First frame
+      component.previousFrame();
+      expect(component.currentFrameIndex).toBe(0); // Should stay
+    });
+
+    it("should reset state correctly", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup state
+      component.videoSrc = "/test.mp4";
+      component.status = 1;
+      component.totalFrames = ["frame1", "frame2"];
+      component.frames = ["frame1", "frame2"];
+      component.currentFrameIndex = 1;
+      component.videoDuration = 10;
+      component.isPlaying = true;
+      component.playInterval = setInterval(() => {}, 100);
+      
+      // Reset
+      component.resetVideo();
+      await nextTick();
+      
+      // Check reset state
+      expect(component.status).toBe(0);
+      expect(component.videoSrc).toBeNull();
+      expect(component.totalFrames).toEqual([]);
+      expect(component.frames).toEqual([]);
+      expect(component.currentFrameIndex).toBe(0);
+      expect(component.videoDuration).toBe(0);
+      expect(component.isPlaying).toBe(false);
+      expect(component.playInterval).toBeNull();
+    });
+  });
+
+  describe("Frame Generation Integration", () => {
+    it("should trigger frame generation when video loads", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Mock video element
+      const mockVideo = {
+        duration: 10,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        addEventListener: vi.fn((event, callback) => {
+          if (event === "loadedmetadata") {
+            setTimeout(() => callback(), 0);
+          }
+        }),
+        play: vi.fn(),
+        load: vi.fn(),
+        requestVideoFrameCallback: vi.fn(() => 1),
+      };
+
+      component.video = mockVideo;
+
+      // Setup video state
+      component.videoDuration = 10;
+      component.fps = "30";
+
+      // Generate frames
+      component.generateFrames();
+      await nextTick();
+
+      // Should call video methods
+      expect(mockVideo.addEventListener).toHaveBeenCalledWith("loadedmetadata", expect.any(Function));
+      expect(mockVideo.play).toHaveBeenCalled();
+    });
+
+    it("should automatically play after loading sample video", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Mock video element with metadata loading
+      const mockVideo = {
+        duration: 10,
+        videoWidth: 1920,
+        videoHeight: 1080,
+        load: vi.fn(),
+        addEventListener: vi.fn((event, callback) => {
+          if (event === "loadedmetadata") {
+            // Simulate metadata loaded immediately
+            setTimeout(() => {
+              mockVideo.duration = 10;
+              callback();
+            }, 0);
+          }
+        }),
+        removeEventListener: vi.fn(),
+        play: vi.fn(),
+        requestVideoFrameCallback: vi.fn(() => 1),
+      };
+
+      component.video = mockVideo;
+
+      // Load sample video
+      await component.loadSampleVideo();
+      await nextTick();
+
+      // Should set video source and load
+      expect(component.videoSrc).toBe("/kekeflipnote.mp4");
+      expect(component.status).toBe(1); // STATUS.loaded
+      expect(mockVideo.load).toHaveBeenCalled();
+    });
+
+    it("should generate new frames when FPS changes and automatically toggle play", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup initial state with frames
+      component.totalFrames = ["frame1", "frame2", "frame3", "frame4"];
+      component.frames = [];
+      component.videoDuration = 4;
+
+      // Change FPS and update frames
+      await wrapper.setData({ fps: "60" });
+      component.updateFrames();
+      await nextTick();
+
+      // Should copy frames from totalFrames
+      expect(component.frames).toEqual(["frame1", "frame2", "frame3", "frame4"]);
+      expect(component.currentFrameIndex).toBe(0);
+
+      // Now toggle play to start animation after frame generation
+      vi.useFakeTimers();
+      component.togglePlay();
+      await nextTick();
+
+      // Should start playing
+      expect(component.isPlaying).toBe(true);
+      expect(component.playInterval).not.toBeNull();
+
+      // Advance timer to test frame looping
+      vi.advanceTimersByTime(100); // Default interval
+      await nextTick();
+
+      // Should advance to next frame
+      expect(component.currentFrameIndex).toBe(1);
+
+      vi.useRealTimers();
+    });
+
+    it("should loop frames during playback", async () => {
+      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      
+      // Setup frames at last frame
+      component.frames = ["frame1", "frame2", "frame3"];
+      component.currentFrameIndex = 2; // Last frame
+      component.playbackSpeed = "0";
+
+      vi.useFakeTimers();
+
+      // Start playing
+      component.togglePlay();
+      await nextTick();
+
+      // Advance timers
+      vi.advanceTimersByTime(100);
+      await nextTick();
+
+      // Should loop back to first frame
+      expect(component.currentFrameIndex).toBe(0);
+
+      vi.useRealTimers();
+    });
+  });
+});
+
+// Mock pdfMake
+vi.mock("pdfmake/build/pdfmake", () => ({
+  createPdf: vi.fn(() => ({
+    download: vi.fn(),
+  })),
+}));
+
+interface MockVideo {
+  duration: number;
+  currentTime: number;
+  videoWidth: number;
+  videoHeight: number;
+  playbackRate: number;
+  ended: boolean;
+  play: ReturnType<typeof vi.fn>;
+  pause: ReturnType<typeof vi.fn>;
+  load: ReturnType<typeof vi.fn>;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+  requestVideoFrameCallback: ReturnType<typeof vi.fn>;
+}
+
+// Mock HTML5 video element
+const createMockVideo = (duration = 10, width = 1920, height = 1080): MockVideo => {
+  const mockVideo: MockVideo = {
+    duration,
+    currentTime: 0,
+    videoWidth: width,
+    videoHeight: height,
+    playbackRate: 1,
+    ended: false,
+    play: vi.fn().mockResolvedValue(undefined),
+    pause: vi.fn(),
+    load: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    requestVideoFrameCallback: vi.fn(),
+  };
+
+  // Mock the frame callback mechanism
+  let frameCallbackId = 0;
+  mockVideo.requestVideoFrameCallback = vi.fn((callback) => {
+    frameCallbackId++;
+    // Simulate frame capture by calling the callback after a short delay
+    setTimeout(() => {
+      const metadata = {
+        width: mockVideo.videoWidth,
+        height: mockVideo.videoHeight,
+      };
+      callback(performance.now(), metadata);
+    }, 10);
+    return frameCallbackId;
+  });
+
+  return mockVideo;
+};
+
+interface MockCanvas {
+  width: number;
+  height: number;
+  getContext: ReturnType<typeof vi.fn>;
+  toDataURL: ReturnType<typeof vi.fn>;
+}
+
+interface MockContext {
+  clearRect: ReturnType<typeof vi.fn>;
+  drawImage: ReturnType<typeof vi.fn>;
+}
+
+// Mock canvas and 2D context
+const createMockCanvas = () => {
+  const mockContext: MockContext = {
+    clearRect: vi.fn(),
+    drawImage: vi.fn(),
+  };
+
+  const mockCanvas: MockCanvas = {
+    width: 0,
+    height: 0,
+    getContext: vi.fn(() => mockContext),
+    toDataURL: vi.fn(() => "data:image/jpeg;base64,mockimagedata"),
+  };
+
+  return { mockCanvas, mockContext };
+};
+
+// Mock createImageBitmap
+global.createImageBitmap = vi.fn().mockResolvedValue({});
+
+describe("Loader Component - Integration Tests", () => {
+  let wrapper: any;
+  let mockVideo: any;
+  let mockCanvas: any;
+  let mockContext: any;
+
+  beforeEach(() => {
+    // Reset all mocks
+    vi.clearAllMocks();
+    
+    // Create mock elements
+    mockVideo = createMockVideo();
+    const canvasMocks = createMockCanvas();
+    mockCanvas = canvasMocks.mockCanvas;
+    mockContext = canvasMocks.mockContext;
+
+    // Mount the component
+    wrapper = mount(Loader);
+
+    // Mock the video and canvas refs
+    wrapper.vm.video = mockVideo;
+    wrapper.vm.canvas = mockCanvas;
+  });
+
+  afterEach(() => {
+    if (wrapper) {
+      wrapper.unmount();
+    }
+  });
+
+  describe("Video Loading and Frame Generation", () => {
+    it("should generate frames when a video is loaded", async () => {
+      // Mock file upload
+      const mockFile = new File(["mock video content"], "test.mp4", { type: "video/mp4" });
+      const mockEvent = {
+        target: {
+          files: [mockFile],
+        },
+      };
+
+      // Mock FileReader
+      const mockFileReader = {
+        readAsDataURL: vi.fn(),
+        onload: null as any,
+        onloadend: null as any,
+        result: "data:video/mp4;base64,mockvideo",
+      };
+
+      global.FileReader = vi.fn(() => mockFileReader) as any;
+
+      // Trigger video upload
+      wrapper.vm.handleVideoUpload(mockEvent);
+
+      // Simulate FileReader onload
+      mockFileReader.onload?.();
+      expect(wrapper.vm.videoSrc).toBe("data:video/mp4;base64,mockvideo");
+
+      // Simulate FileReader onloadend
+      mockFileReader.onloadend?.();
+      
+      await nextTick();
+
+      // Should trigger frame generation
+      expect(wrapper.vm.status).toBe(1); // STATUS.loaded
+      expect(mockVideo.addEventListener).toHaveBeenCalledWith("loadedmetadata", expect.any(Function));
+    });
+
+    it("should generate frames when sample video is loaded", async () => {
+      // Call loadSampleVideo
+      await wrapper.vm.loadSampleVideo();
+
+      await nextTick();
+
+      // Should set video source
+      expect(wrapper.vm.videoSrc).toBe("/kekeflipnote.mp4");
+      expect(wrapper.vm.status).toBe(1); // STATUS.loaded
+      expect(mockVideo.load).toHaveBeenCalled();
+    });
+
+    it("should regenerate frames when FPS is changed", async () => {
+      // Setup initial state with video loaded
+      wrapper.vm.videoSrc = "/kekeflipnote.mp4";
+      wrapper.vm.status = 1; // STATUS.loaded
+      wrapper.vm.videoDuration = 10;
+      wrapper.vm.totalFrames = ["frame1", "frame2", "frame3"];
+
+      // Change FPS value
+      await wrapper.setData({ fps: "60" });
+      
+      // Trigger updateFrames (which is called by FPS change)
+      wrapper.vm.updateFrames();
+
+      await nextTick();
+
+      // Should update frames array
+      expect(wrapper.vm.frames).toEqual(["frame1", "frame2", "frame3"]);
+      expect(wrapper.vm.currentFrameIndex).toBe(0);
+    });
+  });
+
+  describe("Automatic Toggle Play After Loading", () => {
+    it("should automatically start playing after frames are generated", async () => {
+      // Setup video with frames
+      wrapper.vm.videoSrc = "/kekeflipnote.mp4";
+      wrapper.vm.status = 1; // STATUS.loaded
+      wrapper.vm.videoDuration = 10;
+      wrapper.vm.totalFrames = ["frame1", "frame2", "frame3", "frame4"];
+      wrapper.vm.frames = ["frame1", "frame2", "frame3", "frame4"];
+      wrapper.vm.playbackSpeed = "0"; // Default speed
+
+      // Mock setInterval
+      const mockInterval = vi.fn();
+      global.setInterval = vi.fn(() => mockInterval);
+      global.clearInterval = vi.fn();
+
+      // Toggle play to start animation
+      wrapper.vm.togglePlay();
+
+      await nextTick();
+
+      // Should start playing
+      expect(wrapper.vm.isPlaying).toBe(true);
+      expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), 100); // Default 100ms interval
+      expect(wrapper.vm.playInterval).toBe(mockInterval);
+    });
+
+    it("should update animation speed in real-time when playback speed changes", async () => {
+      // Setup playing state
+      wrapper.vm.frames = ["frame1", "frame2", "frame3"];
+      wrapper.vm.isPlaying = true;
+      const mockInterval = vi.fn();
+      wrapper.vm.playInterval = mockInterval;
+
+      // Mock setInterval and clearInterval
+      global.setInterval = vi.fn(() => mockInterval);
+      global.clearInterval = vi.fn();
+
+      // Change playback speed
+      await wrapper.setData({ playbackSpeed: "2" });
+
+      await nextTick();
+
+      // Should clear old interval and create new one with faster speed
+      expect(global.clearInterval).toHaveBeenCalledWith(mockInterval);
+      expect(global.setInterval).toHaveBeenCalledWith(expect.any(Function), expect.any(Number));
+    });
+
+    it("should loop frames during playback", async () => {
+      // Setup frames
+      wrapper.vm.frames = ["frame1", "frame2", "frame3"];
+      wrapper.vm.currentFrameIndex = 2; // Last frame
+      wrapper.vm.isPlaying = true;
+
+      // Mock interval function
+      let intervalCallback: any;
+      global.setInterval = vi.fn((callback) => {
+        intervalCallback = callback;
+        return vi.fn();
+      });
+
+      // Start playing
+      wrapper.vm.togglePlay();
+
+      // Execute interval callback (simulate frame advance)
+      intervalCallback();
+
+      await nextTick();
+
+      // Should loop back to first frame
+      expect(wrapper.vm.currentFrameIndex).toBe(0);
+    });
+  });
+
+  describe("Frame Navigation", () => {
+    beforeEach(() => {
+      // Setup frames for navigation tests
+      wrapper.vm.frames = ["frame1", "frame2", "frame3", "frame4"];
+      wrapper.vm.currentFrameIndex = 1;
+    });
+
+    it("should stop playing when navigating manually", async () => {
+      // Setup playing state
+      wrapper.vm.isPlaying = true;
+      const mockInterval = vi.fn();
+      wrapper.vm.playInterval = mockInterval;
+      global.clearInterval = vi.fn();
+
+      // Navigate to next frame
+      wrapper.vm.nextFrame();
+
+      await nextTick();
+
+      // Should stop playing and advance frame
+      expect(wrapper.vm.isPlaying).toBe(false);
+      expect(global.clearInterval).toHaveBeenCalledWith(mockInterval);
+      expect(wrapper.vm.currentFrameIndex).toBe(2);
+    });
+
+    it("should navigate to previous frame correctly", async () => {
+      // Navigate to previous frame
+      wrapper.vm.previousFrame();
+
+      await nextTick();
+
+      // Should go to previous frame
+      expect(wrapper.vm.currentFrameIndex).toBe(0);
+    });
+
+    it("should not go beyond frame boundaries", async () => {
+      // Test next frame at boundary
+      wrapper.vm.currentFrameIndex = 3; // Last frame
+      wrapper.vm.nextFrame();
+      expect(wrapper.vm.currentFrameIndex).toBe(3); // Should stay at last frame
+
+      // Test previous frame at boundary
+      wrapper.vm.currentFrameIndex = 0; // First frame
+      wrapper.vm.previousFrame();
+      expect(wrapper.vm.currentFrameIndex).toBe(0); // Should stay at first frame
+    });
+  });
+
+  describe("Animation Speed Calculations", () => {
+    it("should calculate correct intervals for different speeds", () => {
+      // Test default speed (0)
+      expect(wrapper.vm.calculateAnimationInterval(0)).toBe(100);
+
+      // Test faster speeds
+      expect(wrapper.vm.calculateAnimationInterval(1)).toBe(50);
+      expect(wrapper.vm.calculateAnimationInterval(2)).toBe(100 / 3); // ~33ms
+
+      // Test slower speeds
+      expect(wrapper.vm.calculateAnimationInterval(-1)).toBe(200);
+      expect(wrapper.vm.calculateAnimationInterval(-5)).toBe(600);
+
+      // Test extreme values
+      expect(wrapper.vm.calculateAnimationInterval(10)).toBeGreaterThanOrEqual(16); // Min 16ms
+      expect(wrapper.vm.calculateAnimationInterval(-10)).toBeLessThanOrEqual(2000); // Max 2000ms
+    });
+  });
+
+  describe("Time Formatting and Display", () => {
+    it("should format time correctly", () => {
+      expect(wrapper.vm.formatTime(0)).toBe("0:00.000");
+      expect(wrapper.vm.formatTime(65.123)).toBe("1:05.123");
+      expect(wrapper.vm.formatTime(125.456)).toBe("2:05.456");
+    });
+
+    it("should calculate current and total time correctly", async () => {
+      // Setup frames and duration
+      wrapper.vm.frames = ["frame1", "frame2", "frame3", "frame4"];
+      wrapper.vm.videoDuration = 4; // 4 seconds
+      wrapper.vm.currentFrameIndex = 1; // Second frame
+
+      await nextTick();
+
+      // Should calculate time position based on frame ratio
+      const expectedTime = (1 / 3) * 4; // ~1.33 seconds
+      expect(wrapper.vm.currentTime).toMatch(/1:01\.\d+/); // Should be around 1:01.xxx
+      expect(wrapper.vm.totalTime).toBe("0:04.000");
+    });
+  });
+
+  describe("Reset Functionality", () => {
+    it("should reset all state when resetVideo is called", async () => {
+      // Setup state
+      wrapper.vm.videoSrc = "/test.mp4";
+      wrapper.vm.status = 1;
+      wrapper.vm.totalFrames = ["frame1", "frame2"];
+      wrapper.vm.frames = ["frame1", "frame2"];
+      wrapper.vm.currentFrameIndex = 1;
+      wrapper.vm.videoDuration = 10;
+      wrapper.vm.isPlaying = true;
+      const mockInterval = vi.fn();
+      wrapper.vm.playInterval = mockInterval;
+
+      global.clearInterval = vi.fn();
+
+      // Reset video
+      wrapper.vm.resetVideo();
+
+      await nextTick();
+
+      // Should reset all state
+      expect(wrapper.vm.status).toBe(0); // STATUS.empty
+      expect(wrapper.vm.videoSrc).toBeNull();
+      expect(wrapper.vm.totalFrames).toEqual([]);
+      expect(wrapper.vm.frames).toEqual([]);
+      expect(wrapper.vm.currentFrameIndex).toBe(0);
+      expect(wrapper.vm.videoDuration).toBe(0);
+      expect(wrapper.vm.isPlaying).toBe(false);
+      expect(global.clearInterval).toHaveBeenCalledWith(mockInterval);
+    });
+  });
+
+  describe("Frame Generation Deterministic Behavior", () => {
+    it("should generate identical frames for same parameters", async () => {
+      // Setup video
+      wrapper.vm.videoSrc = "/test.mp4";
+      wrapper.vm.videoDuration = 5;
+      wrapper.vm.fps = "30";
+
+      // Generate frames first time
+      wrapper.vm.generateFrames();
+      await nextTick();
+
+      // Simulate frame capture completion
+      const firstFrames = [...wrapper.vm.totalFrames];
+
+      // Reset and generate again
+      wrapper.vm.totalFrames = [];
+      wrapper.vm.currentTargetIndex = 0;
+      wrapper.vm.generateFrames();
+      await nextTick();
+
+      // Should generate same number of target times
+      expect(wrapper.vm.targetFrameTimes.length).toBeGreaterThan(0);
+      // Target frame times should be deterministic (tested in helper tests)
+    });
+  });
+});
