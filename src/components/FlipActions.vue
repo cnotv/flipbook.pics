@@ -17,6 +17,7 @@ interface Emits {
   (e: "print"): void;
   (e: "previousFrame"): void;
   (e: "nextFrame"): void;
+  (e: "framePositionChange", index: number): void;
   (e: "coverUpload", event: Event): void;
   (e: "removeCover"): void;
 }
@@ -42,6 +43,24 @@ const triggerCoverUpload = () => {
     <FlipButton :disabled="frames.length === 0" @click="$emit('print')">
       Print
     </FlipButton>
+
+    <!-- Frame position slider -->
+    <div class="frame-slider" v-if="frames.length > 1">
+      <input
+        type="range"
+        :value="currentFrameIndex"
+        :min="0"
+        :max="frames.length - 1"
+        :step="1"
+        @input="
+          $emit(
+            'framePositionChange',
+            Number(($event.target as HTMLInputElement).value),
+          )
+        "
+        class="frame-slider__range"
+      />
+    </div>
 
     <!-- Frame navigation -->
     <div class="frame-navigation" v-if="frames.length > 0">
@@ -134,6 +153,57 @@ const triggerCoverUpload = () => {
   opacity: 0.9;
 }
 
+.frame-slider {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.frame-slider__range {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-background-mute, #f2f2f2);
+  outline: none;
+  cursor: pointer;
+  border: none;
+  appearance: none;
+  margin: 0;
+  padding: 0;
+}
+
+.frame-slider__range::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--main-color, #00b894);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.frame-slider__range::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.frame-slider__range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--main-color, #00b894);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.frame-slider__range::-moz-range-track {
+  height: 6px;
+  background: var(--color-background-mute, #f2f2f2);
+  border-radius: 3px;
+  border: none;
+}
+
 @media (min-width: 1024px) {
   .actions {
     position: absolute;
@@ -146,14 +216,24 @@ const triggerCoverUpload = () => {
 @media (max-width: 1024px) {
   .actions {
     margin-top: 4em;
-    flex-direction: row;
-    gap: 0.2em;
+    flex-direction: column;
+    gap: 0.5em;
     align-items: stretch;
   }
   
   .actions .flip-button {
     height: auto;
     min-height: 2.5em;
+  }
+
+  .frame-slider {
+    order: -1; /* Place slider above other controls */
+    margin-bottom: 0.5em;
+  }
+
+  .frame-navigation {
+    flex-direction: row;
+    gap: 0.2em;
   }
 }
 </style>

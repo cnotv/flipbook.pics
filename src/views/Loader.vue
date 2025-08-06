@@ -45,6 +45,7 @@ const {
   togglePlay,
   previousFrame,
   nextFrame,
+  setFramePosition,
   handleFpsChange,
   LOADING_STATUS,
 } = useVideoFrames();
@@ -177,6 +178,7 @@ const printPreview = () => {
         @print="printPreview()"
         @previousFrame="previousFrame()"
         @nextFrame="nextFrame()"
+        @framePositionChange="setFramePosition"
         @coverUpload="handleCoverUpload"
         @removeCover="cover = null"
       />
@@ -201,7 +203,11 @@ const printPreview = () => {
     <div class="sample-video">
       <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
       <p class="sample-reference">
-        <a href="https://www.instagram.com/p/C25hJPEpJMk/" target="_blank" rel="noopener">
+        <a
+          href="https://www.instagram.com/p/C25hJPEpJMk/"
+          target="_blank"
+          rel="noopener"
+        >
           Reference: @kekeflipnote
         </a>
       </p>

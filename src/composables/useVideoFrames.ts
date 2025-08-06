@@ -460,6 +460,23 @@ export function useVideoFrames() {
     }
   };
 
+  /**
+   * Set frame position directly
+   */
+  const setFramePosition = (index: number) => {
+    // Stop playing when manually navigating
+    if (playInterval.value) {
+      clearInterval(playInterval.value);
+      playInterval.value = null;
+    }
+    isPlaying.value = false;
+
+    // Ensure index is within valid range
+    if (index >= 0 && index < frames.value.length) {
+      currentFrameIndex.value = index;
+    }
+  };
+
   return {
     // State
     fps,
@@ -493,6 +510,7 @@ export function useVideoFrames() {
     togglePlay,
     previousFrame,
     nextFrame,
+    setFramePosition,
 
     // Constants
     VIDEO_STATUS,
