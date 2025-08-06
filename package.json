@@ -12,7 +12,7 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore"
   },
   "dependencies": {
-    "pdfmake": "^0.2.10",
+    "pdfmake": "0.2.10",
     "pinia": "^2.2.4",
     "vue": "^3.4.38",
     "vue-router": "^4.4.5"
