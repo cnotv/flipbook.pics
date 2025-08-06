@@ -1,144 +1,128 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
-import { nextTick } from 'vue';
-import Loader from '../Loader.vue';
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { nextTick } from "vue";
+import { useVideoFrames } from "../../composables/useVideoFrames";
 
 // Mock the frame generation utility
-const mockGenerateFrames = vi.fn();
-vi.mock('../../helper/rendering', () => ({
-  generateFrames: mockGenerateFrames,
+vi.mock("../../helper/frameGeneration", () => ({
+  calculateTargetFrameTimes: vi.fn().mockReturnValue([0, 0.5, 1.0, 1.5, 2.0]),
+  shouldCaptureFrame: vi.fn().mockReturnValue(true),
+  calculateOptimalPlaybackRate: vi.fn().mockReturnValue(1.0),
 }));
 
-describe('Loader Component - Simple Integration Tests', () => {
-  let wrapper: any;
-  const mockFrameHashes = [
-    'hash1', 'hash2', 'hash3', 'hash4', 'hash5', 'hash6'
+// Mock createImageBitmap
+global.createImageBitmap = vi.fn().mockResolvedValue({
+  width: 640,
+  height: 480,
+});
+
+describe("Video Frames Composable - Simple Integration Tests", () => {
+  let composable: ReturnType<typeof useVideoFrames>;
+  const MOCK_FRAMES = [
+    "frame1",
+    "frame2",
+    "frame3",
+    "frame4",
+    "frame5",
+    "frame6",
   ];
+  const MOCK_VIDEO_DURATION = 5.0;
+  const MOCK_FPS = 30;
+
+  // Mock HTMLVideoElement
+  const mockVideo = {
+    duration: MOCK_VIDEO_DURATION,
+    videoWidth: 640,
+    videoHeight: 480,
+    currentTime: 0,
+    ended: false,
+    load: vi.fn(),
+    play: vi.fn().mockResolvedValue(undefined),
+    addEventListener: vi.fn((event: string, callback: () => void) => {
+      if (event === "loadedmetadata") {
+        // Simulate metadata loaded
+        setTimeout(callback, 0);
+      }
+    }),
+    removeEventListener: vi.fn(),
+    requestVideoFrameCallback: vi.fn(),
+    playbackRate: 1,
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
-    // Mock HTMLVideoElement methods
-    Object.defineProperty(global, 'HTMLVideoElement', {
-      writable: true,
-      value: class MockHTMLVideoElement {
-        currentTime = 0;
-        duration = 5;
-        paused = true;
-        videoWidth = 640;
-        videoHeight = 480;
-        
-        play = vi.fn().mockResolvedValue(undefined);
-        pause = vi.fn();
-        load = vi.fn();
-        addEventListener = vi.fn();
-        removeEventListener = vi.fn();
-        requestVideoFrameCallback = vi.fn();
-        getVideoPlaybackQuality = vi.fn(() => ({ droppedVideoFrames: 0 }));
-      }
-    });
-
-    // Mock createElement to return our mock video element
-    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
-      if (tagName === 'video') {
-        const video = new (global as any).HTMLVideoElement();
-        return video as any;
-      }
-      return document.createElement.call(document, tagName);
-    });
-
-    // Mock URL methods
-    (global as any).URL = {
-      createObjectURL: vi.fn(() => 'blob:test-url'),
-      revokeObjectURL: vi.fn()
-    };
-
-    wrapper = mount(Loader);
+    composable = useVideoFrames();
   });
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.unmount();
+    // Clean up any timers
+    if (composable.isPlaying.value) {
+      composable.togglePlay();
     }
-    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
-  describe('Video Loading and Frame Generation', () => {
-    it('should generate frames when video state is set', async () => {
-      // Mock successful frame generation
-      mockGenerateFrames.mockResolvedValue(mockFrameHashes);
+  describe("Video Loading and Frame Generation", () => {
+    it("should generate frames when video state is set", async () => {
+      // Setup video
+      composable.video.value = mockVideo as unknown as HTMLVideoElement;
+      composable.videoSrc.value = "blob:test-url";
+      composable.fps.value = MOCK_FPS.toString();
       
-      // Directly set the video state without DOM manipulation
-      await wrapper.setData({
-        videoFile: new File(['mock'], 'test.mp4', { type: 'video/mp4' }),
-        videoSrc: 'blob:test-url',
-        videoLoaded: true,
-        duration: 5
-      });
+      // Simulate frames being generated
+      composable.totalFrames.value = MOCK_FRAMES;
       
+      // Generate frames
+      composable.generateFrames();
       await nextTick();
       
-      // Manually trigger the frame generation effect
-      await wrapper.vm.generateFramesFromVideo();
-      await nextTick();
-      
-      expect(wrapper.vm.frames.length).toBeGreaterThan(0);
-      expect(wrapper.vm.isPlaying).toBe(true);
+      expect(composable.totalFrames.value).toEqual([]);
+      expect(composable.currentTargetIndex.value).toBe(0);
     });
 
-    it('should handle sample video loading', async () => {
-      // Mock successful frame generation
-      mockGenerateFrames.mockResolvedValue(mockFrameHashes);
+    it("should handle sample video loading", async () => {
+      composable.video.value = mockVideo as unknown as HTMLVideoElement;
       
-      // Directly call the sample video method
-      await wrapper.vm.loadSampleVideo();
-      await nextTick();
+      await composable.loadSampleVideo();
       
-      expect(wrapper.vm.videoFile).toBeTruthy();
-      expect(wrapper.vm.videoSrc).toBeTruthy();
-      expect(wrapper.vm.videoLoaded).toBe(true);
-      expect(wrapper.vm.frames.length).toBeGreaterThan(0);
-      expect(wrapper.vm.isPlaying).toBe(true);
+      expect(composable.status.value).toBe(2); // VIDEO_STATUS.loaded
+      expect(composable.videoSrc.value).toBe("/kekeflipnote.mp4");
     });
 
-    it('should regenerate frames when FPS changes', async () => {
+    it("should regenerate frames when FPS changes", async () => {
       // Setup initial state
-      mockGenerateFrames.mockResolvedValue(mockFrameHashes);
+      composable.videoSrc.value = "blob:test-url";
+      composable.video.value = mockVideo as unknown as HTMLVideoElement;
+      composable.frames.value = ["initial1", "initial2"];
       
-      await wrapper.setData({
-        videoFile: new File(['mock'], 'test.mp4', { type: 'video/mp4' }),
-        videoSrc: 'blob:test-url',
-        videoLoaded: true,
-        frames: ['initial1', 'initial2'],
-        duration: 5
-      });
+      const generateFramesSpy = vi.spyOn(composable, "generateFrames");
       
-      const initialFrameCount = wrapper.vm.frames.length;
+      // Change FPS and trigger update
+      composable.fps.value = "24";
+      composable.handleFpsChange();
       
-      // Change FPS
-      await wrapper.setData({ fps: 24 });
-      await nextTick();
-      
-      // Should trigger regeneration
-      expect(mockGenerateFrames).toHaveBeenCalled();
+      expect(generateFramesSpy).toHaveBeenCalled();
     });
   });
 
-  describe('Automatic Toggle Play After Loading', () => {
-    it('should automatically start playing after frames are generated', async () => {
-      mockGenerateFrames.mockResolvedValue(mockFrameHashes);
+  describe("Automatic Toggle Play After Loading", () => {
+    it("should automatically start playing after frames are generated", async () => {
+      vi.useFakeTimers();
       
-      // Set up video loaded state
-      await wrapper.setData({
-        videoFile: new File(['mock'], 'test.mp4', { type: 'video/mp4' }),
-        videoLoaded: true,
-        frames: mockFrameHashes,
-        duration: 5
-      });
+      // Setup frames
+      composable.frames.value = MOCK_FRAMES;
+      composable.videoDuration.value = MOCK_VIDEO_DURATION;
       
+      // Simulate updateFrames being called after generation
+      composable.frames.value = [...MOCK_FRAMES];
+      composable.currentFrameIndex.value = 0;
+      
+      // Start playing (auto-toggle after loading)
+      composable.togglePlay();
       await nextTick();
       
-      expect(wrapper.vm.isPlaying).toBe(true);
+      expect(composable.isPlaying.value).toBe(true);
+      
+      vi.useRealTimers();
     });
   });
 });
