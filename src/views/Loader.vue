@@ -415,11 +415,25 @@ const updateFrames = () => {
 
   // Reset current frame index when frames change
   currentFrameIndex.value = 0;
+
+  // Automatically start playing after frames are generated
+  if (frames.value.length > 0) {
+    // Use a small delay to ensure the frames are properly updated in the DOM
+    setTimeout(() => {
+      togglePlay();
+    }, 100);
+  }
 };
 
 /**
- * Generate PDF from frames and navigate to preview page
+ * Handle FPS changes - regenerate frames with new FPS and toggle play
  */
+const handleFpsChange = () => {
+  // Only regenerate if we have a video loaded
+  if (videoSrc.value && video.value) {
+    generateFrames();
+  }
+};
 const printPreview = () => {
   // Calculate dimensions maintaining aspect ratio
   const maxWidth = 480 / 1.5;
@@ -595,7 +609,7 @@ const printPreview = () => {
       label="FPS:"
       :min="1"
       :max="120"
-      @change="updateFrames"
+      @change="handleFpsChange"
     >
     </FlipSlider>
 
