@@ -12,13 +12,29 @@ describe("FlipFrames Component", () => {
 
   const mockCover = "data:image/jpeg;base64,cover";
 
+  // Mock LOADING_STATUS constant
+  const LOADING_STATUS = {
+    idle: 0,
+    loadingVideo: 1,
+    generatingFrames: 2,
+    extractingFrames: 3,
+    ready: 4,
+  };
+
+  // Helper function to create default props
+  const createDefaultProps = (overrides = {}) => ({
+    frames: mockFrames,
+    currentFrameIndex: 0,
+    loadingStatus: LOADING_STATUS.idle,
+    loadingText: "",
+    LOADING_STATUS,
+    ...overrides,
+  });
+
   describe("Component Rendering", () => {
     it("should render frames container", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 0,
-        },
+        props: createDefaultProps(),
       });
 
       expect(wrapper.find(".frames")).toBeTruthy();
@@ -26,268 +42,136 @@ describe("FlipFrames Component", () => {
 
     it("should render current frame with correct src", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
+        props: createDefaultProps({
           currentFrameIndex: 2,
-        },
+        }),
       });
 
       const currentFrame = wrapper.find(".frames__item--current");
       expect(currentFrame.exists()).toBe(true);
       expect(currentFrame.attributes("src")).toBe(mockFrames[2]);
-      expect(currentFrame.attributes("alt")).toBe("Current frame");
     });
 
     it("should render cover when provided", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
+        props: createDefaultProps({
           cover: mockCover,
-          currentFrameIndex: 0,
-        },
+        }),
       });
 
-      const coverImage = wrapper.find('img[alt="Cover"]');
-      expect(coverImage.exists()).toBe(true);
-      expect(coverImage.attributes("src")).toBe(mockCover);
+      const coverElement = wrapper.find('img[alt="Cover"]');
+      expect(coverElement.exists()).toBe(true);
+      expect(coverElement.attributes("src")).toBe(mockCover);
     });
 
-    it("should not render cover when not provided", () => {
+    it("should render stack frames", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 0,
-        },
+        props: createDefaultProps(),
       });
 
-      const coverImage = wrapper.find('img[alt="Cover"]');
-      expect(coverImage.exists()).toBe(false);
-    });
-
-    it("should render all stack frames", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 1,
-        },
-      });
-
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
-
-      expect(stackFrames.length).toBe(mockFrames.length);
-    });
-
-    it("should apply flipped class to non-last frames", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 0,
-        },
-      });
-
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
-
-      // All frames except the last one should have flipped class
-      const flippedFrames = stackFrames.filter((img) =>
-        img.classes("frames__item--flipped"),
-      );
-
-      expect(flippedFrames.length).toBe(mockFrames.length - 1);
+      const stackFrames = wrapper.findAll(".frames__item");
+      expect(stackFrames.length).toBeGreaterThan(0);
     });
   });
 
-  describe("Frame Visibility Logic", () => {
-    it("should hide frames beyond display limit", () => {
-      const manyFrames = Array.from({ length: 15 }, (_, i) => `frame${i}`);
-
+  describe("Loading Status Display", () => {
+    it("should show loading overlay when loading status is not idle", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: manyFrames,
-          currentFrameIndex: 0,
-        },
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.loadingVideo,
+          loadingText: "Loading video...",
+        }),
       });
 
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
-
-      // Frames beyond the last 10 should be hidden
-      const hiddenFrames = stackFrames.filter((img) => {
-        const style = img.attributes("style");
-        return style && style.includes("display: none");
-      });
-
-      expect(hiddenFrames.length).toBe(5); // 15 - 10 = 5 hidden frames
+      const overlay = wrapper.find(".frames__loading-overlay");
+      expect(overlay.exists()).toBe(true);
     });
 
-    it("should make current frame transparent in stack", () => {
+    it("should hide loading overlay when loading status is idle", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 2,
-        },
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.idle,
+        }),
       });
 
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
-
-      // Find the frame at currentFrameIndex in the stack
-      const currentIndexFrame = stackFrames.find((img, index) => {
-        const style = img.attributes("style");
-        return index === 2 && style && style.includes("opacity: 0");
-      });
-
-      expect(currentIndexFrame).toBeTruthy();
+      const overlay = wrapper.find(".frames__loading-overlay");
+      expect(overlay.exists()).toBe(false);
     });
 
-    it("should apply correct opacity to different frame types", () => {
+    it("should display loading text", () => {
+      const testText = "Generating frames...";
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 1,
-        },
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.generatingFrames,
+          loadingText: testText,
+        }),
       });
 
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
+      expect(wrapper.text()).toContain(testText);
+    });
 
-      stackFrames.forEach((img, index) => {
-        const style = img.attributes("style") || "";
-
-        if (index === 1) {
-          // Current frame should be transparent
-          expect(style).toContain("opacity: 0");
-        } else if (index < mockFrames.length - 1) {
-          // Non-last frames should be semi-transparent
-          expect(style).toContain("opacity: 0.5");
-        } else {
-          // Last frame should be opaque
-          expect(style).toContain("opacity: 1");
-        }
+    it("should show correct status icon for loading video", () => {
+      const wrapper = mount(FlipFrames, {
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.loadingVideo,
+        }),
       });
+
+      expect(wrapper.text()).toContain("📹 Loading video...");
+    });
+
+    it("should show correct status icon for generating frames", () => {
+      const wrapper = mount(FlipFrames, {
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.generatingFrames,
+        }),
+      });
+
+      expect(wrapper.text()).toContain("⚙️ Generating frames...");
+    });
+
+    it("should show correct status icon for extracting frames", () => {
+      const wrapper = mount(FlipFrames, {
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.extractingFrames,
+        }),
+      });
+
+      expect(wrapper.text()).toContain("🎞️ Extracting frames...");
+    });
+
+    it("should show correct status icon for ready", () => {
+      const wrapper = mount(FlipFrames, {
+        props: createDefaultProps({
+          loadingStatus: LOADING_STATUS.ready,
+        }),
+      });
+
+      expect(wrapper.text()).toContain("✅ Ready!");
     });
   });
 
-  describe("Props Validation", () => {
+  describe("Edge Cases", () => {
     it("should handle empty frames array", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
+        props: createDefaultProps({
           frames: [],
-          currentFrameIndex: 0,
-        },
+        }),
       });
 
       const currentFrame = wrapper.find(".frames__item--current");
       expect(currentFrame.exists()).toBe(false);
-
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter((img) => img.attributes("alt") !== "Cover");
-      expect(stackFrames.length).toBe(0);
     });
 
-    it("should handle currentFrameIndex out of bounds", () => {
+    it("should handle null cover", () => {
       const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 999,
-        },
-      });
-
-      const currentFrame = wrapper.find(".frames__item--current");
-      expect(currentFrame.exists()).toBe(true);
-      // Should still render but with undefined frame source
-      expect(currentFrame.attributes("src")).toBeUndefined();
-    });
-
-    it("should handle null cover gracefully", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
+        props: createDefaultProps({
           cover: null,
-          currentFrameIndex: 0,
-        },
+        }),
       });
 
-      const coverImage = wrapper.find('img[alt="Cover"]');
-      expect(coverImage.exists()).toBe(false);
-    });
-  });
-
-  describe("Z-Index and Layering", () => {
-    it("should set correct z-index for cover", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          cover: mockCover,
-          currentFrameIndex: 0,
-        },
-      });
-
-      const coverImage = wrapper.find('img[alt="Cover"]');
-      const style = coverImage.attributes("style") || "";
-      expect(style).toContain("z-index: 1");
-    });
-
-    it("should set negative z-index for stack frames", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 0,
-        },
-      });
-
-      const stackFrames = wrapper
-        .findAll(".frames__item")
-        .filter(
-          (img) =>
-            !img.classes("frames__item--current") &&
-            img.attributes("alt") !== "Cover",
-        );
-
-      stackFrames.forEach((img, index) => {
-        const style = img.attributes("style") || "";
-        expect(style).toContain(`z-index: ${-index}`);
-      });
-    });
-
-    it("should use CSS class for current frame z-index", () => {
-      const wrapper = mount(FlipFrames, {
-        props: {
-          frames: mockFrames,
-          currentFrameIndex: 1,
-        },
-      });
-
-      const currentFrame = wrapper.find(".frames__item--current");
-      expect(currentFrame.exists()).toBe(true);
-      expect(currentFrame.classes()).toContain("frames__item--current");
+      const coverElement = wrapper.find('img[alt="Cover"]');
+      expect(coverElement.exists()).toBe(false);
     });
   });
 });

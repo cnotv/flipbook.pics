@@ -17,6 +17,14 @@ enum VIDEO_STATUS {
   error,
 }
 
+enum LOADING_STATUS {
+  idle,
+  loadingVideo,
+  generatingFrames,
+  extractingFrames,
+  ready,
+}
+
 export function useVideoFrames() {
   // Core state
   const fps = ref("30");
@@ -26,6 +34,8 @@ export function useVideoFrames() {
   const videoSrc = ref<string | null>();
   const video = ref<HTMLVideoElement>();
   const status = ref(VIDEO_STATUS.empty);
+  const loadingStatus = ref(LOADING_STATUS.idle);
+  const loadingText = ref("");
   const canvas = ref<HTMLCanvasElement>();
   const totalFrames = ref<string[]>([]);
   const frames = ref<string[]>([]);
@@ -210,6 +220,9 @@ export function useVideoFrames() {
    */
   const handleVideoUpload = (event: Event) => {
     status.value = VIDEO_STATUS.loading;
+    loadingStatus.value = LOADING_STATUS.loadingVideo;
+    loadingText.value = "Setting loading status with text";
+    
     const target = event.target as HTMLInputElement;
     const file: File = target.files![0];
     const reader = new FileReader();
@@ -229,6 +242,8 @@ export function useVideoFrames() {
    */
   const loadSampleVideo = async () => {
     status.value = VIDEO_STATUS.loading;
+    loadingStatus.value = LOADING_STATUS.loadingVideo;
+    loadingText.value = "Setting loading status with text";
 
     try {
       // Set the video source
@@ -269,6 +284,8 @@ export function useVideoFrames() {
       }
     } catch (error) {
       status.value = VIDEO_STATUS.error;
+      loadingStatus.value = LOADING_STATUS.idle;
+      loadingText.value = "";
     }
   };
 
@@ -276,6 +293,9 @@ export function useVideoFrames() {
    * Generate frames from videos from given uploaded video file
    */
   const generateFrames = () => {
+    loadingStatus.value = LOADING_STATUS.generatingFrames;
+    loadingText.value = "Generating frames";
+    
     totalFrames.value = [];
     currentTargetIndex.value = 0;
 
@@ -292,6 +312,9 @@ export function useVideoFrames() {
           videoEl.duration,
           targetFps,
         );
+
+        loadingStatus.value = LOADING_STATUS.extractingFrames;
+        loadingText.value = `Extracting frames for ${targetFps} FPS`;
 
         // Reset video to start and begin capture
         videoEl.currentTime = 0;
@@ -326,9 +349,15 @@ export function useVideoFrames() {
     // Reset current frame index when frames change
     currentFrameIndex.value = 0;
 
+    // Set status to ready
+    loadingStatus.value = LOADING_STATUS.ready;
+    loadingText.value = "Setting status ready";
+
     // Automatically start playing after frames are generated
     if (frames.value.length > 0) {
       setTimeout(() => {
+        loadingStatus.value = LOADING_STATUS.idle;
+        loadingText.value = "";
         togglePlay();
       }, 100);
     }
@@ -356,6 +385,8 @@ export function useVideoFrames() {
     isPlaying.value = false;
 
     status.value = VIDEO_STATUS.empty;
+    loadingStatus.value = LOADING_STATUS.idle;
+    loadingText.value = "";
     videoSrc.value = null;
     totalFrames.value = [];
     frames.value = [];
@@ -438,6 +469,8 @@ export function useVideoFrames() {
     videoSrc,
     video,
     status,
+    loadingStatus,
+    loadingText,
     canvas,
     totalFrames,
     frames,
@@ -463,5 +496,6 @@ export function useVideoFrames() {
 
     // Constants
     VIDEO_STATUS,
+    LOADING_STATUS,
   };
 }

@@ -36,6 +36,8 @@ const {
   currentTime,
   totalTime,
   isPlaying,
+  loadingStatus,
+  loadingText,
   handleVideoUpload: composableHandleVideoUpload,
   loadSampleVideo: composableLoadSampleVideo,
   generateFrames,
@@ -44,6 +46,7 @@ const {
   previousFrame,
   nextFrame,
   handleFpsChange,
+  LOADING_STATUS,
 } = useVideoFrames();
 
 /**
@@ -148,6 +151,9 @@ const printPreview = () => {
         :frames="frames"
         :cover="cover"
         :current-frame-index="currentFrameIndex"
+        :loading-status="loadingStatus"
+        :loading-text="loadingText"
+        :LOADING_STATUS="LOADING_STATUS"
       />
 
       <!-- Video and canvas for frame capture -->
