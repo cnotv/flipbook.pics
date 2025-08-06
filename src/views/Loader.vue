@@ -110,11 +110,11 @@ watch(playbackSpeed, (newSpeed) => {
   if (isPlaying.value && playInterval.value) {
     // Clear current interval
     clearInterval(playInterval.value);
-    
+
     // Calculate new interval
     const speed = parseFloat(newSpeed) || 0;
     const intervalMs = calculateAnimationInterval(speed);
-    
+
     // Start new interval with updated speed
     playInterval.value = setInterval(() => {
       // Move to next frame, loop back to start when reaching the end
@@ -482,127 +482,123 @@ const printPreview = () => {
 </script>
 
 <template>
-  <div>
-    <section class="frame">
-      <!-- loading video before the src causes error in the DOM -->
-      <template v-if="videoSrc">
-        <div class="frames">
-          <!-- Show cover as the topmost frame if it exists -->
-          <img
-            v-if="cover"
-            class="frames__item"
-            :style="{
-              zIndex: 1,
-              display: 'block',
-            }"
-            :src="cover"
-            alt="Cover"
-          />
+  <section class="frame">
+    <!-- loading video before the src causes error in the DOM -->
+    <template v-if="videoSrc">
+      <div class="frames">
+        <!-- Show cover as the topmost frame if it exists -->
+        <img
+          v-if="cover"
+          class="frames__item"
+          :style="{
+            zIndex: 1,
+            display: 'block',
+          }"
+          :src="cover"
+          alt="Cover"
+        />
 
-          <!-- Show current frame when navigating manually -->
-          <img
-            v-if="frames.length > 0"
-            class="frames__item frames__item--current"
-            :src="frames[currentFrameIndex]"
-            alt="Current frame"
-          />
+        <!-- Show current frame when navigating manually -->
+        <img
+          v-if="frames.length > 0"
+          class="frames__item frames__item--current"
+          :src="frames[currentFrameIndex]"
+          alt="Current frame"
+        />
 
-          <!-- Show stack effect for remaining frames -->
-          <img
-            class="frames__item"
-            :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-            :style="{
-              zIndex: -index,
-              display: index < frames.length - 10 ? 'none' : 'block',
-              opacity:
-                index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
-            }"
-            :src="frame"
-            alt=""
-            v-for="(frame, index) in frames"
-            :key="`stack-${index}`"
-          />
-        </div>
+        <!-- Show stack effect for remaining frames -->
+        <img
+          class="frames__item"
+          :class="{ 'frames__item--flipped': index < frames.length - 1 }"
+          :style="{
+            zIndex: -index,
+            display: index < frames.length - 10 ? 'none' : 'block',
+            opacity:
+              index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
+          }"
+          :src="frame"
+          alt=""
+          v-for="(frame, index) in frames"
+          :key="`stack-${index}`"
+        />
+      </div>
 
-        <!-- Video and canvas for frame capture -->
-        <video ref="video" class="video" muted>
-          <source :src="videoSrc" type="video/mp4" />
-          <source :src="videoSrc" type="video/webm" />
-          Your browser does not support the video tag.
-        </video>
-        <canvas class="canvas" ref="canvas"></canvas>
+      <!-- Video and canvas for frame capture -->
+      <video ref="video" class="video" muted>
+        <source :src="videoSrc" type="video/mp4" />
+        <source :src="videoSrc" type="video/webm" />
+        Your browser does not support the video tag.
+      </video>
+      <canvas class="canvas" ref="canvas"></canvas>
 
-        <!-- Actions -->
-        <div class="actions">
-          <FlipButton @click="resetVideo()">X</FlipButton>
-          <FlipButton :disabled="!totalFrames.length" @click="togglePlay()">
-            {{ isPlaying ? "⏸" : "▶" }}
+      <!-- Actions -->
+      <div class="actions">
+        <FlipButton @click="resetVideo()">X</FlipButton>
+        <FlipButton :disabled="!totalFrames.length" @click="togglePlay()">
+          {{ isPlaying ? "⏸" : "▶" }}
+        </FlipButton>
+        <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
+          Print
+        </FlipButton>
+
+        <!-- Frame navigation -->
+        <div class="frame-navigation" v-if="frames.length > 0">
+          <FlipButton :disabled="currentFrameIndex === 0" @click="previousFrame()">
+            ←
           </FlipButton>
-          <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
-            Print
-          </FlipButton>
-
-          <!-- Frame navigation -->
-          <div class="frame-navigation" v-if="frames.length > 0">
-            <FlipButton :disabled="currentFrameIndex === 0" @click="previousFrame()">
-              ←
-            </FlipButton>
-            <div class="frame-counter">
-              <div class="frame-count">
-                {{ currentFrameIndex + 1 }} / {{ frames.length }}
-              </div>
-              <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
+          <div class="frame-counter">
+            <div class="frame-count">
+              {{ currentFrameIndex + 1 }} / {{ frames.length }}
             </div>
-            <FlipButton
-              :disabled="currentFrameIndex >= frames.length - 1"
-              @click="nextFrame()"
-            >
-              →
-            </FlipButton>
+            <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
           </div>
-
-          <FlipFile
-            v-if="!cover"
-            id="cover"
-            accept="image/*"
-            @change="handleCoverUpload"
-            class="cover-upload"
-            >+ Cover</FlipFile
+          <FlipButton
+            :disabled="currentFrameIndex >= frames.length - 1"
+            @click="nextFrame()"
           >
-          <FlipButton v-else @click="cover = null"> - Cover </FlipButton>
+            →
+          </FlipButton>
         </div>
-      </template>
 
-      <FlipFile
-        v-if="status === STATUS.empty"
-        id="video"
-        accept="video/*"
-        @change="handleVideoUpload"
-      >
-        <h2>Add Video +</h2>
-      </FlipFile>
-
-      <div class="loader" v-if="status === STATUS.loading"></div>
-
-      <div class="error" v-if="status === STATUS.error">
-        <p>Error loading video. Please try again or upload a different video.</p>
-        <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
+        <FlipFile
+          v-if="!cover"
+          id="cover"
+          accept="image/*"
+          @change="handleCoverUpload"
+          class="cover-upload"
+          >+ Cover</FlipFile
+        >
+        <FlipButton v-else @click="cover = null"> - Cover </FlipButton>
       </div>
+    </template>
 
-      <div class="sample-video">
-        <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
-        <p class="sample-reference">
-          <a
-            href="https://www.instagram.com/p/C25hJPEpJMk/"
-            target="_blank"
-            rel="noopener"
-          >
-            Reference: @kekeflipnote
-          </a>
-        </p>
-      </div>
-    </section>
+    <FlipFile
+      v-if="status === STATUS.empty"
+      id="video"
+      accept="video/*"
+      @change="handleVideoUpload"
+    >
+      <h2>Add Video +</h2>
+    </FlipFile>
 
+    <div class="loader" v-if="status === STATUS.loading"></div>
+
+    <div class="error" v-if="status === STATUS.error">
+      <p>Error loading video. Please try again or upload a different video.</p>
+      <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
+    </div>
+
+    <div class="sample-video">
+      <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
+      <p class="sample-reference">
+        <a href="https://www.instagram.com/p/C25hJPEpJMk/" target="_blank" rel="noopener">
+          Reference: @kekeflipnote
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <section class="sliders">
     <FlipSlider
       id="fps"
       v-model="fps"
@@ -621,7 +617,7 @@ const printPreview = () => {
       :max="10"
       :step="0.1"
     ></FlipSlider>
-  </div>
+  </section>
 </template>
 
 <style>
@@ -631,6 +627,13 @@ const printPreview = () => {
   --frame-width: 560px;
   --actions-width: 200px;
   --frame-height: calc(var(--frame-width) * var(--video-ratio));
+}
+
+.sliders {
+  width: var(--frame-width);
+
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .sample-video {
