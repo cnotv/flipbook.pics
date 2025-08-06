@@ -10,6 +10,8 @@ import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
+import FlipFrames from "../components/FlipFrames.vue";
+import FlipActions from "../components/FlipActions.vue";
 import {
   calculateTargetFrameTimes,
   shouldCaptureFrame,
@@ -278,7 +280,6 @@ const loadSampleVideo = async () => {
       generateFrames();
     }
   } catch (error) {
-    console.error("Error loading sample video:", error);
     status.value = STATUS.error;
   }
 };
@@ -418,7 +419,6 @@ const updateFrames = () => {
 
   // Automatically start playing after frames are generated
   if (frames.value.length > 0) {
-    // Use a small delay to ensure the frames are properly updated in the DOM
     setTimeout(() => {
       togglePlay();
     }, 100);
@@ -485,43 +485,11 @@ const printPreview = () => {
   <section class="frame">
     <!-- loading video before the src causes error in the DOM -->
     <template v-if="videoSrc">
-      <div class="frames">
-        <!-- Show cover as the topmost frame if it exists -->
-        <img
-          v-if="cover"
-          class="frames__item"
-          :style="{
-            zIndex: 1,
-            display: 'block',
-          }"
-          :src="cover"
-          alt="Cover"
-        />
-
-        <!-- Show current frame when navigating manually -->
-        <img
-          v-if="frames.length > 0"
-          class="frames__item frames__item--current"
-          :src="frames[currentFrameIndex]"
-          alt="Current frame"
-        />
-
-        <!-- Show stack effect for remaining frames -->
-        <img
-          class="frames__item"
-          :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-          :style="{
-            zIndex: -index,
-            display: index < frames.length - 10 ? 'none' : 'block',
-            opacity:
-              index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
-          }"
-          :src="frame"
-          alt=""
-          v-for="(frame, index) in frames"
-          :key="`stack-${index}`"
-        />
-      </div>
+      <FlipFrames
+        :frames="frames"
+        :cover="cover"
+        :current-frame-index="currentFrameIndex"
+      />
 
       <!-- Video and canvas for frame capture -->
       <video ref="video" class="video" muted>
@@ -532,44 +500,21 @@ const printPreview = () => {
       <canvas class="canvas" ref="canvas"></canvas>
 
       <!-- Actions -->
-      <div class="actions">
-        <FlipButton @click="resetVideo()">X</FlipButton>
-        <FlipButton :disabled="!totalFrames.length" @click="togglePlay()">
-          {{ isPlaying ? "⏸" : "▶" }}
-        </FlipButton>
-        <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
-          Print
-        </FlipButton>
-
-        <!-- Frame navigation -->
-        <div class="frame-navigation" v-if="frames.length > 0">
-          <FlipButton :disabled="currentFrameIndex === 0" @click="previousFrame()">
-            ←
-          </FlipButton>
-          <div class="frame-counter">
-            <div class="frame-count">
-              {{ currentFrameIndex + 1 }} / {{ frames.length }}
-            </div>
-            <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
-          </div>
-          <FlipButton
-            :disabled="currentFrameIndex >= frames.length - 1"
-            @click="nextFrame()"
-          >
-            →
-          </FlipButton>
-        </div>
-
-        <FlipFile
-          v-if="!cover"
-          id="cover"
-          accept="image/*"
-          @change="handleCoverUpload"
-          class="cover-upload"
-          >+ Cover</FlipFile
-        >
-        <FlipButton v-else @click="cover = null"> - Cover </FlipButton>
-      </div>
+      <FlipActions
+        :frames="frames"
+        :isPlaying="isPlaying"
+        :currentFrameIndex="currentFrameIndex"
+        :currentTime="currentTime"
+        :totalTime="totalTime"
+        :cover="cover"
+        @reset="resetVideo()"
+        @togglePlay="togglePlay()"
+        @print="printPreview()"
+        @previousFrame="previousFrame()"
+        @nextFrame="nextFrame()"
+        @coverUpload="handleCoverUpload"
+        @removeCover="cover = null"
+      />
     </template>
 
     <FlipFile
@@ -681,96 +626,6 @@ const printPreview = () => {
   display: none;
 }
 
-.frames {
-  position: relative;
-  width: var(--frame-width);
-  height: var(--frame-height);
-  z-index: 100;
-  -webkit-perspective: 1300px;
-  perspective: 1300px;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  max-width: 100%;
-  overflow: hidden; /* Only the frames container needs overflow hidden */
-  border-radius: var(--border-radius);
-}
-
-.frames__item {
-  position: absolute;
-  width: var(--frame-width);
-  height: var(--frame-height);
-  object-fit: contain; /* Maintain aspect ratio within fixed dimensions */
-  object-position: center; /* Center the content */
-  /* box-shadow: 1px 1px 1px 1px white; */
-  -webkit-transform-style: preserve-3d;
-  transform-style: preserve-3d;
-  -webkit-transition-property: -webkit-transform;
-  transition-property: transform;
-  max-width: 100%;
-}
-
-.frames__item--flipped {
-  transform: rotateY(-75deg);
-  transform-origin: left center;
-  opacity: 0.5;
-  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
-    opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-}
-
-.actions .flip-button {
-  flex: 1;
-  font-size: 0.9em;
-  padding: 0.75em 1em;
-}
-
-.frame-navigation {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  flex: 1;
-}
-
-.frame-navigation .flip-button {
-  flex: 1;
-  padding: 0.75em 0.5em;
-  font-size: 0.9em;
-}
-
-.frame-counter {
-  font-size: 0.9em;
-  font-weight: 600;
-  padding: 0.75em 1em;
-  background: var(--main-color, #00b894);
-  color: white;
-  border-radius: var(--border-radius, 4px);
-  text-align: center;
-  border: none;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-}
-
-.frame-count {
-  font-weight: 700;
-}
-
-.time-display {
-  font-size: 0.8em;
-  opacity: 0.9;
-}
-
-.frames__item--current {
-  z-index: 2 !important;
-}
-
 .loader {
   width: 3em;
   height: 3em;
@@ -809,47 +664,5 @@ const printPreview = () => {
   .frame {
     margin-bottom: 8em;
   }
-
-  .actions {
-    position: absolute;
-    top: 0;
-    right: calc(var(--actions-width) * -1);
-    width: var(--actions-width);
-  }
-}
-@media (max-width: 1024px) {
-  .actions {
-    margin-top: 4em;
-    flex-direction: row;
-    gap: 0.2em;
-  }
-}
-
-/* Cover upload styling */
-.cover-upload .flip-file__label {
-  line-height: inherit;
-  background: var(--main-color, #00b894);
-  color: white;
-  padding: 0.75em 1em;
-  border-radius: var(--border-radius, 4px);
-  font-weight: 600;
-  font-size: 0.9em;
-  transition: all 0.2s ease;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  flex: 1;
-}
-
-.cover-upload .flip-file__label:hover {
-  background: var(--main-color, #00b894);
-  transform: translateY(-1px);
-}
-
-.cover-upload .flip-file__label:active {
-  transform: translateY(0);
 }
 </style>
