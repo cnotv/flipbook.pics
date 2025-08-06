@@ -4,7 +4,7 @@
  * VideoDecoder? https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
-import { ref } from "vue";
+import { ref, computed } from "vue";
 import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
@@ -28,6 +28,7 @@ const {
   fps,
   playbackSpeed,
   currentFrameIndex,
+  videoDuration,
   videoSrc,
   video,
   canvas,
@@ -49,6 +50,20 @@ const {
   handleFpsChange,
   LOADING_STATUS,
 } = useVideoFrames();
+
+/**
+ * Estimate the number of frames that will be generated
+ */
+const estimatedFrameCount = computed(() => {
+  const fpsValue = parseInt(fps.value) || 0;
+  const duration = videoDuration.value || 0;
+
+  if (fpsValue === 0 || duration === 0) {
+    return 0;
+  }
+
+  return Math.ceil(fpsValue * duration);
+});
 
 /**
  * Add cover to the frames preview
@@ -203,11 +218,7 @@ const printPreview = () => {
     <div class="sample-video">
       <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
       <p class="sample-reference">
-        <a
-          href="https://www.instagram.com/p/C25hJPEpJMk/"
-          target="_blank"
-          rel="noopener"
-        >
+        <a href="https://www.instagram.com/p/C25hJPEpJMk/" target="_blank" rel="noopener">
           Reference: @kekeflipnote
         </a>
       </p>
@@ -222,6 +233,8 @@ const printPreview = () => {
       :min="1"
       :max="120"
       @change="handleFpsChange"
+      :show-info="videoDuration > 0"
+      :info-text="`Estimated frame count: ${(estimatedFrameCount - 1).toLocaleString()}`"
     >
     </FlipSlider>
 
