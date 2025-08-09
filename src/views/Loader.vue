@@ -11,6 +11,7 @@ import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
 import FlipFrames from "../components/FlipFrames.vue";
 import FlipActions from "../components/FlipActions.vue";
+import FlipbookSizeSelector from "../components/FlipbookSizeSelector.vue";
 import { useVideoFrames } from "../composables/useVideoFrames";
 
 enum STATUS {
@@ -39,6 +40,8 @@ const {
   isPlaying,
   loadingStatus,
   loadingText,
+  flipbookWidth,
+  flipbookHeight,
   handleVideoUpload: composableHandleVideoUpload,
   loadSampleVideo: composableLoadSampleVideo,
   generateFrames,
@@ -48,6 +51,7 @@ const {
   nextFrame,
   setFramePosition,
   handleFpsChange,
+  setFlipbookSize,
   LOADING_STATUS,
 } = useVideoFrames();
 
@@ -63,6 +67,25 @@ const estimatedFrameCount = computed(() => {
   }
 
   return Math.ceil(fpsValue * duration);
+});
+
+/**
+ * Calculate CSS frame dimensions based on flipbook size
+ */
+const frameDimensions = computed(() => {
+  const pixelsPerInch = 60; // Scale factor for display
+  const width = flipbookWidth.value * pixelsPerInch;
+  const height = flipbookHeight.value * pixelsPerInch;
+  const maxWidth = 560; // Maximum display width
+
+  // Scale down if too large
+  const scale = Math.min(1, maxWidth / width);
+
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+    aspectRatio: flipbookWidth.value / flipbookHeight.value,
+  };
 });
 
 /**
@@ -112,6 +135,13 @@ const resetVideo = () => {
   status.value = STATUS.empty;
   cover.value = null;
 };
+
+/**
+ * Handle flipbook size change
+ */
+const handleFlipbookSizeChange = (size: { width: number; height: number }) => {
+  setFlipbookSize(size.width, size.height);
+};
 const printPreview = () => {
   // Calculate dimensions maintaining aspect ratio
   const maxWidth = 480 / 1.5;
@@ -160,7 +190,16 @@ const printPreview = () => {
 </script>
 
 <template>
-  <section class="frame">
+  <section
+    class="frame"
+    :style="{
+      '--frame-width': frameDimensions.width + 'px',
+      '--frame-height': frameDimensions.height + 'px',
+      '--video-ratio': (1 / frameDimensions.aspectRatio).toString(),
+      width: frameDimensions.width + 'px',
+      height: frameDimensions.height + 'px',
+    }"
+  >
     <!-- loading video before the src causes error in the DOM -->
     <template v-if="videoSrc">
       <FlipFrames
@@ -179,24 +218,6 @@ const printPreview = () => {
         Your browser does not support the video tag.
       </video>
       <canvas class="canvas" ref="canvas"></canvas>
-
-      <!-- Actions -->
-      <FlipActions
-        :frames="frames"
-        :isPlaying="isPlaying"
-        :currentFrameIndex="currentFrameIndex"
-        :currentTime="currentTime"
-        :totalTime="totalTime"
-        :cover="cover"
-        @reset="resetVideo()"
-        @togglePlay="togglePlay()"
-        @print="printPreview()"
-        @previousFrame="previousFrame()"
-        @nextFrame="nextFrame()"
-        @framePositionChange="setFramePosition"
-        @coverUpload="handleCoverUpload"
-        @removeCover="cover = null"
-      />
     </template>
 
     <FlipFile
@@ -214,16 +235,44 @@ const printPreview = () => {
       <p>Error loading video. Please try again or upload a different video.</p>
       <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
     </div>
-
-    <div class="sample-video">
-      <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
-      <p class="sample-reference">
-        <a href="https://www.instagram.com/p/C25hJPEpJMk/" target="_blank" rel="noopener">
-          Reference: @kekeflipnote
-        </a>
-      </p>
-    </div>
   </section>
+
+  <!-- Actions under the video -->
+  <template v-if="videoSrc">
+    <FlipActions
+      :frames="frames"
+      :isPlaying="isPlaying"
+      :currentFrameIndex="currentFrameIndex"
+      :currentTime="currentTime"
+      :totalTime="totalTime"
+      :cover="cover"
+      @reset="resetVideo()"
+      @togglePlay="togglePlay()"
+      @print="printPreview()"
+      @previousFrame="previousFrame()"
+      @nextFrame="nextFrame()"
+      @framePositionChange="setFramePosition"
+      @coverUpload="handleCoverUpload"
+      @removeCover="cover = null"
+    />
+  </template>
+
+  <!-- Load Sample Video - always visible -->
+  <div class="sample-video">
+    <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
+    <p class="sample-reference">
+      <a
+        href="https://www.instagram.com/p/C25hJPEpJMk/"
+        target="_blank"
+        rel="noopener"
+      >
+        Reference: @kekeflipnote
+      </a>
+    </p>
+  </div>
+
+  <!-- Flipbook Size Selector -->
+  <FlipbookSizeSelector @size-change="handleFlipbookSizeChange" />
 
   <section class="sliders">
     <FlipSlider
@@ -250,26 +299,18 @@ const printPreview = () => {
 </template>
 
 <style>
-:root {
-  --video-ratio: 9 / 16;
-  --frame-padding: 50px;
-  --frame-width: 560px;
-  --actions-width: 200px;
-  --frame-height: calc(var(--frame-width) * var(--video-ratio));
-}
-
+/* CSS variables are now set dynamically in the template */
 .sliders {
-  width: var(--frame-width);
-
-  margin-left: auto;
-  margin-right: auto;
+  width: 100%;
+  max-width: 560px;
+  margin: 2rem auto;
 }
 
 .sample-video {
   text-align: center;
-  margin-top: 2em;
-  padding: 1em;
-  border-top: 1px solid var(--border-color, #ccc);
+  margin: 2rem auto;
+  padding: 1rem;
+  max-width: 560px;
 }
 
 .sample-reference {
@@ -290,16 +331,17 @@ const printPreview = () => {
 .frame {
   cursor: pointer;
   position: relative;
-  width: var(--frame-width);
-  height: var(--frame-height);
+  min-width: 200px;
+  min-height: 150px;
   border: var(--border);
   box-sizing: content-box;
-  margin-bottom: 8em;
+  margin-bottom: 2rem;
   margin-top: 1em;
   margin-left: auto;
   margin-right: auto;
   max-width: 100%;
   border-radius: var(--border-radius);
+  transition: all 0.3s ease;
 }
 .frame:hover {
   background-color: var(--main-color-a);

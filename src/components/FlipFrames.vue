@@ -20,7 +20,10 @@ defineProps<Props>();
 <template>
   <div class="frames">
     <!-- Loading overlay -->
-    <div v-if="loadingStatus !== LOADING_STATUS.idle" class="frames__loading-overlay">
+    <div
+      v-if="loadingStatus !== LOADING_STATUS.idle"
+      class="frames__loading-overlay"
+    >
       <div class="frames__loading-content">
         <div class="frames__loading-spinner"></div>
         <div class="frames__loading-text">{{ loadingText }}</div>
@@ -54,7 +57,8 @@ defineProps<Props>();
       :style="{
         zIndex: -index,
         display: index < frames.length - 10 ? 'none' : 'block',
-        opacity: index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
+        opacity:
+          index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
       }"
       :src="frame"
       alt=""
@@ -145,7 +149,8 @@ defineProps<Props>();
   transform: rotateY(-75deg);
   transform-origin: left center;
   opacity: 0.5;
-  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
+  transition:
+    transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
     opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
 }
 

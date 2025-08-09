@@ -220,7 +220,7 @@ const triggerCoverUpload = () => {
     gap: 0.5em;
     align-items: stretch;
   }
-  
+
   .actions .flip-button {
     height: auto;
     min-height: 2.5em;

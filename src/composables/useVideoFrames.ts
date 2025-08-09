@@ -49,6 +49,22 @@ export function useVideoFrames() {
   const isPlaying = ref(false);
   const playInterval = ref<NodeJS.Timeout | null>(null);
 
+  // Flipbook size state (default to landscape classic size)
+  const flipbookWidth = ref(6); // inches - landscape orientation
+  const flipbookHeight = ref(4); // inches
+
+  /**
+   * Set flipbook dimensions
+   */
+  const setFlipbookSize = (width: number, height: number) => {
+    flipbookWidth.value = width;
+    flipbookHeight.value = height;
+    // Regenerate frames if we have a video loaded
+    if (videoSrc.value && video.value) {
+      generateFrames();
+    }
+  };
+
   /**
    * Format time in seconds to MM:SS.mmm format (with milliseconds)
    */
@@ -173,43 +189,59 @@ export function useVideoFrames() {
     width: number,
     height: number,
     page: HTMLCanvasElement,
+    frameWidth?: number,
+    frameHeight?: number,
   ) => {
     const bitmap = await createImageBitmap(video.value!);
 
-    // Use a consistent canvas size that matches our CSS frame dimensions
-    const frameWidth = 560; // matches --frame-width
-    const frameHeight = Math.round(frameWidth * (9 / 16)); // matches --frame-height calculation
+    // Calculate frame dimensions based on flipbook size
+    // Use a consistent scale: 1 inch = 96 pixels (CSS standard)
+    const pixelsPerInch = 96;
+    const targetFrameWidth = frameWidth || flipbookWidth.value * pixelsPerInch;
+    const targetFrameHeight =
+      frameHeight || flipbookHeight.value * pixelsPerInch;
 
-    page.width = frameWidth;
-    page.height = frameHeight;
+    page.width = targetFrameWidth;
+    page.height = targetFrameHeight;
 
     const ctx = page.getContext("2d");
     if (ctx) {
       // Clear canvas
-      ctx.clearRect(0, 0, frameWidth, frameHeight);
+      ctx.clearRect(0, 0, targetFrameWidth, targetFrameHeight);
 
-      // Calculate dimensions to fit the video within the frame while maintaining aspect ratio
+      // Calculate aspect ratios
       const videoAspect = width / height;
-      const frameAspect = frameWidth / frameHeight;
+      const flipbookAspect = targetFrameWidth / targetFrameHeight;
 
-      let drawWidth, drawHeight, drawX, drawY;
+      let sourceX = 0,
+        sourceY = 0,
+        sourceWidth = width,
+        sourceHeight = height;
 
-      if (videoAspect > frameAspect) {
-        // Video is wider - fit to width
-        drawWidth = frameWidth;
-        drawHeight = frameWidth / videoAspect;
-        drawX = 0;
-        drawY = (frameHeight - drawHeight) / 2;
+      // Crop video to match flipbook aspect ratio (crop by overflow)
+      if (videoAspect > flipbookAspect) {
+        // Video is wider than flipbook - crop sides
+        sourceWidth = height * flipbookAspect;
+        sourceX = (width - sourceWidth) / 2;
       } else {
-        // Video is taller - fit to height
-        drawHeight = frameHeight;
-        drawWidth = frameHeight * videoAspect;
-        drawX = (frameWidth - drawWidth) / 2;
-        drawY = 0;
+        // Video is taller than flipbook - crop top/bottom
+        sourceHeight = width / flipbookAspect;
+        sourceY = (height - sourceHeight) / 2;
       }
 
-      // Draw the image centered and maintaining aspect ratio
-      ctx.drawImage(bitmap, drawX, drawY, drawWidth, drawHeight);
+      // Draw the cropped video to fill the entire flipbook frame
+      ctx.drawImage(
+        bitmap,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        targetFrameWidth,
+        targetFrameHeight,
+      );
+
       const image = page.toDataURL("image/jpeg", 0.9);
       totalFrames.value.push(image);
     }
@@ -495,6 +527,8 @@ export function useVideoFrames() {
     targetFrameTimes,
     currentTargetIndex,
     isPlaying,
+    flipbookWidth,
+    flipbookHeight,
 
     // Computed
     currentTime,
@@ -511,6 +545,7 @@ export function useVideoFrames() {
     previousFrame,
     nextFrame,
     setFramePosition,
+    setFlipbookSize,
 
     // Constants
     VIDEO_STATUS,
