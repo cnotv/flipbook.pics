@@ -17,14 +17,6 @@ enum VIDEO_STATUS {
   error,
 }
 
-enum LOADING_STATUS {
-  idle,
-  loadingVideo,
-  generatingFrames,
-  extractingFrames,
-  ready,
-}
-
 export function useVideoFrames() {
   // Core state
   const fps = ref("30");
@@ -34,7 +26,6 @@ export function useVideoFrames() {
   const videoSrc = ref<string | null>();
   const video = ref<HTMLVideoElement>();
   const status = ref(VIDEO_STATUS.empty);
-  const loadingStatus = ref(LOADING_STATUS.idle);
   const loadingText = ref("");
   const canvas = ref<HTMLCanvasElement>();
   const totalFrames = ref<string[]>([]);
@@ -52,6 +43,28 @@ export function useVideoFrames() {
   // Flipbook size state (default to landscape classic size)
   const flipbookWidth = ref(6); // inches - landscape orientation
   const flipbookHeight = ref(4); // inches
+
+  /**
+   * Reset all video and frame state
+   */
+  const resetVideo = () => {
+    // Stop any playing animation
+    if (playInterval.value) {
+      clearInterval(playInterval.value);
+      playInterval.value = null;
+    }
+    isPlaying.value = false;
+
+    status.value = VIDEO_STATUS.empty;
+    loadingText.value = "";
+    videoSrc.value = null;
+    totalFrames.value = [];
+    frames.value = [];
+    currentFrameIndex.value = 0;
+    videoDuration.value = 0;
+    targetFrameTimes.value = [];
+    currentTargetIndex.value = 0;
+  };
 
   /**
    * Set flipbook dimensions
@@ -256,9 +269,11 @@ export function useVideoFrames() {
    */
   const handleVideoUpload = (event: Event): Promise<void> => {
     return new Promise((resolve, reject) => {
+      // Reset existing video and frames before loading new one
+      resetVideo();
+      
       status.value = VIDEO_STATUS.loading;
-      loadingStatus.value = LOADING_STATUS.loadingVideo;
-      loadingText.value = "Setting loading status with text";
+      loadingText.value = "Loading video...";
       
       const target = event.target as HTMLInputElement;
       const file: File = target.files![0];
@@ -275,14 +290,12 @@ export function useVideoFrames() {
           resolve();
         } catch (error) {
           status.value = VIDEO_STATUS.error;
-          loadingStatus.value = LOADING_STATUS.idle;
           loadingText.value = "";
           reject(error);
         }
       };
       reader.onerror = () => {
         status.value = VIDEO_STATUS.error;
-        loadingStatus.value = LOADING_STATUS.idle;
         loadingText.value = "";
         reject(new Error("Failed to read video file"));
       };
@@ -293,9 +306,11 @@ export function useVideoFrames() {
    * Load sample video kekeflipnote.mp4
    */
   const loadSampleVideo = async () => {
+    // Reset existing video and frames before loading new one
+    resetVideo();
+    
     status.value = VIDEO_STATUS.loading;
-    loadingStatus.value = LOADING_STATUS.loadingVideo;
-    loadingText.value = "Setting loading status with text";
+    loadingText.value = "Loading sample video...";
 
     try {
       // Set the video source
@@ -336,7 +351,6 @@ export function useVideoFrames() {
       }
     } catch (error) {
       status.value = VIDEO_STATUS.error;
-      loadingStatus.value = LOADING_STATUS.idle;
       loadingText.value = "";
     }
   };
@@ -349,7 +363,6 @@ export function useVideoFrames() {
    */
   const generateFrames = (): Promise<void> => {
     return new Promise((resolve, reject) => {
-      loadingStatus.value = LOADING_STATUS.generatingFrames;
       loadingText.value = "Generating frames";
       
       totalFrames.value = [];
@@ -374,7 +387,6 @@ export function useVideoFrames() {
             targetFps,
           );
 
-          loadingStatus.value = LOADING_STATUS.extractingFrames;
           loadingText.value = `Extracting frames for ${targetFps} FPS`;
 
           // Reset video to start and begin capture
@@ -386,8 +398,21 @@ export function useVideoFrames() {
             targetFps,
           );
 
-          videoEl.play();
-          videoEl["requestVideoFrameCallback"](getFrame);
+          // Ensure video can play and start frame capture
+          const playPromise = videoEl.play();
+          if (playPromise !== undefined) {
+            playPromise
+              .then(() => {
+                videoEl["requestVideoFrameCallback"](getFrame);
+              })
+              .catch((error) => {
+                console.error("Video play failed:", error);
+                frameGenerationResolver = null;
+                reject(new Error("Failed to start video playback"));
+              });
+          } else {
+            videoEl["requestVideoFrameCallback"](getFrame);
+          }
         } catch (error) {
           frameGenerationResolver = null;
           reject(error);
@@ -437,13 +462,11 @@ export function useVideoFrames() {
     currentFrameIndex.value = 0;
 
     // Set status to ready
-    loadingStatus.value = LOADING_STATUS.ready;
-    loadingText.value = "Setting status ready";
+    loadingText.value = "Ready";
 
     // Automatically start playing after frames are generated
     if (frames.value.length > 0) {
       setTimeout(() => {
-        loadingStatus.value = LOADING_STATUS.idle;
         loadingText.value = "";
         togglePlay();
         
@@ -473,33 +496,9 @@ export function useVideoFrames() {
       } catch (error) {
         console.error("Failed to regenerate frames:", error);
         status.value = VIDEO_STATUS.error;
-        loadingStatus.value = LOADING_STATUS.idle;
         loadingText.value = "";
       }
     }
-  };
-
-  /**
-   * Reset all video and frame state
-   */
-  const resetVideo = () => {
-    // Stop any playing animation
-    if (playInterval.value) {
-      clearInterval(playInterval.value);
-      playInterval.value = null;
-    }
-    isPlaying.value = false;
-
-    status.value = VIDEO_STATUS.empty;
-    loadingStatus.value = LOADING_STATUS.idle;
-    loadingText.value = "";
-    videoSrc.value = null;
-    totalFrames.value = [];
-    frames.value = [];
-    currentFrameIndex.value = 0;
-    videoDuration.value = 0;
-    targetFrameTimes.value = [];
-    currentTargetIndex.value = 0;
   };
 
   /**
@@ -592,7 +591,6 @@ export function useVideoFrames() {
     videoSrc,
     video,
     status,
-    loadingStatus,
     loadingText,
     canvas,
     totalFrames,
@@ -623,6 +621,5 @@ export function useVideoFrames() {
 
     // Constants
     VIDEO_STATUS,
-    LOADING_STATUS,
   };
 }

@@ -3,15 +3,8 @@ interface Props {
   frames: string[];
   cover?: string | null;
   currentFrameIndex: number;
-  loadingStatus: number;
+  loadingStatus: number; // 0=empty, 1=loading, 2=loaded, 3=error
   loadingText: string;
-  LOADING_STATUS: {
-    idle: number;
-    loadingVideo: number;
-    generatingFrames: number;
-    extractingFrames: number;
-    ready: number;
-  };
 }
 
 defineProps<Props>();
@@ -20,10 +13,7 @@ defineProps<Props>();
 <template>
   <div class="frames">
     <!-- Loading overlay -->
-    <div
-      v-if="loadingStatus !== LOADING_STATUS.idle"
-      class="frames__loading-overlay"
-    >
+    <div v-if="loadingStatus === 1" class="frames__loading-overlay">
       <div class="frames__loading-content">
         <div class="frames__loading-spinner"></div>
         <div class="frames__loading-text">{{ loadingText }}</div>

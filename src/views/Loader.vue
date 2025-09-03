@@ -38,7 +38,6 @@ const {
   currentTime,
   totalTime,
   isPlaying,
-  loadingStatus,
   loadingText,
   flipbookWidth,
   flipbookHeight,
@@ -51,7 +50,6 @@ const {
   setFramePosition,
   handleFpsChange,
   setFlipbookSize,
-  LOADING_STATUS,
 } = useVideoFrames();
 
 /**
@@ -107,6 +105,8 @@ const handleCoverUpload = (event: Event) => {
 const handleVideoUpload = async (event: Event) => {
   try {
     status.value = STATUS.loading;
+    // Reset cover when loading new video
+    cover.value = null;
     await composableHandleVideoUpload(event);
     status.value = STATUS.loaded;
   } catch (error) {
@@ -121,6 +121,8 @@ const handleVideoUpload = async (event: Event) => {
  */
 const loadSampleVideo = async () => {
   status.value = STATUS.loading;
+  // Reset cover when loading sample video
+  cover.value = null;
 
   try {
     await composableLoadSampleVideo();
@@ -209,9 +211,8 @@ const printPreview = () => {
         :frames="frames"
         :cover="cover"
         :current-frame-index="currentFrameIndex"
-        :loading-status="loadingStatus"
+        :loading-status="status"
         :loading-text="loadingText"
-        :LOADING_STATUS="LOADING_STATUS"
       />
 
       <!-- Video and canvas for frame capture -->
