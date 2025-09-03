@@ -44,7 +44,6 @@ const {
   flipbookHeight,
   handleVideoUpload: composableHandleVideoUpload,
   loadSampleVideo: composableLoadSampleVideo,
-  generateFrames,
   resetVideo: composableResetVideo,
   togglePlay,
   previousFrame,
@@ -105,11 +104,15 @@ const handleCoverUpload = (event: Event) => {
 /**
  * Load video, render it and add to the frames preview
  */
-const handleVideoUpload = (event: Event) => {
-  status.value = STATUS.loading;
-  composableHandleVideoUpload(event);
-  status.value = STATUS.loaded;
-  generateFrames();
+const handleVideoUpload = async (event: Event) => {
+  try {
+    status.value = STATUS.loading;
+    await composableHandleVideoUpload(event);
+    status.value = STATUS.loaded;
+  } catch (error) {
+    status.value = STATUS.error;
+    console.error("Failed to upload video:", error);
+  }
 };
 
 /**

@@ -56,12 +56,16 @@ export function useVideoFrames() {
   /**
    * Set flipbook dimensions
    */
-  const setFlipbookSize = (width: number, height: number) => {
+  const setFlipbookSize = async (width: number, height: number) => {
     flipbookWidth.value = width;
     flipbookHeight.value = height;
     // Regenerate frames if we have a video loaded
     if (videoSrc.value && video.value) {
-      generateFrames();
+      try {
+        await generateFrames();
+      } catch (error) {
+        console.error("Failed to regenerate frames after size change:", error);
+      }
     }
   };
 
@@ -250,23 +254,39 @@ export function useVideoFrames() {
   /**
    * Load video from file input
    */
-  const handleVideoUpload = (event: Event) => {
-    status.value = VIDEO_STATUS.loading;
-    loadingStatus.value = LOADING_STATUS.loadingVideo;
-    loadingText.value = "Setting loading status with text";
-    
-    const target = event.target as HTMLInputElement;
-    const file: File = target.files![0];
-    const reader = new FileReader();
+  const handleVideoUpload = (event: Event): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      status.value = VIDEO_STATUS.loading;
+      loadingStatus.value = LOADING_STATUS.loadingVideo;
+      loadingText.value = "Setting loading status with text";
+      
+      const target = event.target as HTMLInputElement;
+      const file: File = target.files![0];
+      const reader = new FileReader();
 
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      videoSrc.value = String(reader.result);
-    };
-    reader.onloadend = () => {
-      status.value = VIDEO_STATUS.loaded;
-      generateFrames();
-    };
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        videoSrc.value = String(reader.result);
+      };
+      reader.onloadend = async () => {
+        try {
+          status.value = VIDEO_STATUS.loaded;
+          await generateFrames();
+          resolve();
+        } catch (error) {
+          status.value = VIDEO_STATUS.error;
+          loadingStatus.value = LOADING_STATUS.idle;
+          loadingText.value = "";
+          reject(error);
+        }
+      };
+      reader.onerror = () => {
+        status.value = VIDEO_STATUS.error;
+        loadingStatus.value = LOADING_STATUS.idle;
+        loadingText.value = "";
+        reject(new Error("Failed to read video file"));
+      };
+    });
   };
 
   /**
@@ -312,7 +332,7 @@ export function useVideoFrames() {
         });
 
         // Now generate frames
-        generateFrames();
+        await generateFrames();
       }
     } catch (error) {
       status.value = VIDEO_STATUS.error;
@@ -321,46 +341,81 @@ export function useVideoFrames() {
     }
   };
 
+  // Frame generation completion callback
+  let frameGenerationResolver: (() => void) | null = null;
+
   /**
    * Generate frames from videos from given uploaded video file
    */
-  const generateFrames = () => {
-    loadingStatus.value = LOADING_STATUS.generatingFrames;
-    loadingText.value = "Generating frames";
-    
-    totalFrames.value = [];
-    currentTargetIndex.value = 0;
+  const generateFrames = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      loadingStatus.value = LOADING_STATUS.generatingFrames;
+      loadingText.value = "Generating frames";
+      
+      totalFrames.value = [];
+      currentTargetIndex.value = 0;
+      frameGenerationResolver = resolve;
 
-    const videoEl = video.value;
-    if (videoEl) {
-      // Wait for video metadata to load to get accurate dimensions and duration
-      videoEl.addEventListener("loadedmetadata", () => {
-        videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
-        videoDuration.value = videoEl.duration;
+      const videoEl = video.value;
+      if (!videoEl) {
+        reject(new Error("Video element not found"));
+        return;
+      }
 
-        // Calculate deterministic frame capture times using utility function
-        const targetFps = parseInt(fps.value) || 30;
-        targetFrameTimes.value = calculateTargetFrameTimes(
-          videoEl.duration,
-          targetFps,
-        );
+      const processVideo = () => {
+        try {
+          videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
+          videoDuration.value = videoEl.duration;
 
-        loadingStatus.value = LOADING_STATUS.extractingFrames;
-        loadingText.value = `Extracting frames for ${targetFps} FPS`;
+          // Calculate deterministic frame capture times using utility function
+          const targetFps = parseInt(fps.value) || 30;
+          targetFrameTimes.value = calculateTargetFrameTimes(
+            videoEl.duration,
+            targetFps,
+          );
 
-        // Reset video to start and begin capture
-        videoEl.currentTime = 0;
+          loadingStatus.value = LOADING_STATUS.extractingFrames;
+          loadingText.value = `Extracting frames for ${targetFps} FPS`;
 
-        // Calculate optimal playback rate for consistent processing
-        videoEl.playbackRate = calculateOptimalPlaybackRate(
-          videoEl.duration,
-          targetFps,
-        );
-      });
+          // Reset video to start and begin capture
+          videoEl.currentTime = 0;
 
-      videoEl.play();
-      videoEl["requestVideoFrameCallback"](getFrame);
-    }
+          // Calculate optimal playback rate for consistent processing
+          videoEl.playbackRate = calculateOptimalPlaybackRate(
+            videoEl.duration,
+            targetFps,
+          );
+
+          videoEl.play();
+          videoEl["requestVideoFrameCallback"](getFrame);
+        } catch (error) {
+          frameGenerationResolver = null;
+          reject(error);
+        }
+      };
+
+      // Check if metadata is already loaded
+      if (videoEl.readyState >= 1) {
+        // HAVE_METADATA or higher
+        processVideo();
+      } else {
+        const handleMetadata = () => {
+          videoEl.removeEventListener("loadedmetadata", handleMetadata);
+          videoEl.removeEventListener("error", handleError);
+          processVideo();
+        };
+
+        const handleError = (_error: Event) => {
+          videoEl.removeEventListener("loadedmetadata", handleMetadata);
+          videoEl.removeEventListener("error", handleError);
+          frameGenerationResolver = null;
+          reject(new Error("Failed to load video metadata"));
+        };
+
+        videoEl.addEventListener("loadedmetadata", handleMetadata);
+        videoEl.addEventListener("error", handleError);
+      }
+    });
   };
 
   /**
@@ -391,17 +446,36 @@ export function useVideoFrames() {
         loadingStatus.value = LOADING_STATUS.idle;
         loadingText.value = "";
         togglePlay();
+        
+        // Resolve the promise if we have a resolver
+        if (frameGenerationResolver) {
+          frameGenerationResolver();
+          frameGenerationResolver = null;
+        }
       }, 100);
+    } else {
+      // Resolve immediately if no frames were generated
+      if (frameGenerationResolver) {
+        frameGenerationResolver();
+        frameGenerationResolver = null;
+      }
     }
   };
 
   /**
    * Handle FPS changes - regenerate frames with new FPS
    */
-  const handleFpsChange = () => {
+  const handleFpsChange = async () => {
     // Only regenerate if we have a video loaded
     if (videoSrc.value && video.value) {
-      generateFrames();
+      try {
+        await generateFrames();
+      } catch (error) {
+        console.error("Failed to regenerate frames:", error);
+        status.value = VIDEO_STATUS.error;
+        loadingStatus.value = LOADING_STATUS.idle;
+        loadingText.value = "";
+      }
     }
   };
 
