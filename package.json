@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
+    "build:clean": "SASS_SILENCE_DEPRECATIONS=legacy-js-api,fs-importer-cwd vue-tsc --noEmit && vite build",
     "preview": "vite preview --port 5050",
     "test:unit": "vitest --environment jsdom",
     "test:e2e": "start-server-and-test preview http://127.0.0.1:5050/ 'cypress open'",
@@ -37,6 +38,7 @@
     "prettier": "^3.3.3",
     "rollup": "^4.46.2",
     "sass": "^1.92.0",
+    "sass-embedded": "^1.92.0",
     "start-server-and-test": "^2.0.8",
     "typescript": "~5.5.4",
     "vite": "^7.1.4",

@@ -23,7 +23,7 @@
 </template>
 
 <style lang="scss">
-@import "@/assets/base.scss";
+@use "@/assets/base.scss";
 
 .app {
   width: 100vw;

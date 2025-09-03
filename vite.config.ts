@@ -22,6 +22,17 @@ export default defineConfig({
       },
     }),
   ],
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // Silence Sass deprecation warnings to prevent build noise
+        // - legacy-js-api: Dart Sass 2.0.0 will remove support for the legacy JavaScript API
+        // - fs-importer-cwd: Using current working directory as implicit load path is deprecated
+        // These settings ensure a clean build output while maintaining compatibility
+        silenceDeprecations: ["legacy-js-api", "fs-importer-cwd"],
+      },
+    },
+  },
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
