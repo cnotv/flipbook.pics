@@ -35,7 +35,7 @@ const triggerCoverUpload = () => {
 </script>
 
 <template>
-  <div class="actions">
+  <div class="flip-actions">
     <FlipButton @click="$emit('reset')">X</FlipButton>
     <FlipButton :disabled="frames.length === 0" @click="$emit('togglePlay')">
       {{ isPlaying ? "⏸" : "▶" }}
@@ -45,7 +45,7 @@ const triggerCoverUpload = () => {
     </FlipButton>
 
     <!-- Frame position slider -->
-    <div class="frame-slider" v-if="frames.length > 1">
+    <div class="flip-actions__slider" v-if="frames.length > 1">
       <input
         type="range"
         :value="currentFrameIndex"
@@ -58,23 +58,23 @@ const triggerCoverUpload = () => {
             Number(($event.target as HTMLInputElement).value),
           )
         "
-        class="frame-slider__range"
+        class="flip-actions__range"
       />
     </div>
 
     <!-- Frame navigation -->
-    <div class="frame-navigation" v-if="frames.length > 0">
+    <div class="flip-actions__navigation" v-if="frames.length > 0">
       <FlipButton
         :disabled="currentFrameIndex === 0"
         @click="$emit('previousFrame')"
       >
         ←
       </FlipButton>
-      <div class="frame-counter">
-        <div class="frame-count">
+      <div class="flip-actions__counter">
+        <div class="flip-actions__count">
           {{ currentFrameIndex + 1 }} / {{ frames.length }}
         </div>
-        <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
+        <div class="flip-actions__time">{{ currentTime }} / {{ totalTime }}</div>
       </div>
       <FlipButton
         :disabled="currentFrameIndex >= frames.length - 1"
@@ -86,7 +86,7 @@ const triggerCoverUpload = () => {
 
     <!-- Cover upload/remove -->
     <template v-if="!cover">
-      <FlipButton @click="triggerCoverUpload" class="cover-upload">
+      <FlipButton @click="triggerCoverUpload" class="flip-actions__cover-upload">
         + Cover
       </FlipButton>
       <input
@@ -102,138 +102,134 @@ const triggerCoverUpload = () => {
   </div>
 </template>
 
-<style scoped>
-.actions {
+<style lang="scss" scoped>
+.flip-actions {
   display: flex;
   flex-direction: column;
   gap: 1em;
-}
 
-.actions .flip-button {
-  flex: 1;
-  font-size: 0.9em;
-  padding: 0.75em 1em;
-}
+  .flip-button {
+    flex: 1;
+    font-size: 0.9em;
+    padding: 0.75em 1em;
+  }
 
-.frame-navigation {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  flex: 1;
-}
+  &__slider {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
 
-.frame-navigation .flip-button {
-  flex: 1;
-  padding: 0.75em 0.5em;
-  font-size: 0.9em;
-}
+  &__range {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--color-background-mute, #f2f2f2);
+    outline: none;
+    cursor: pointer;
+    border: none;
+    appearance: none;
+    margin: 0;
+    padding: 0;
 
-.frame-counter {
-  font-size: 0.9em;
-  font-weight: 600;
-  padding: 0.75em 1em;
-  background: var(--main-color, #00b894);
-  color: white;
-  border-radius: var(--border-radius, 4px);
-  text-align: center;
-  border: none;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-}
+    &::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--main-color, #00b894);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 
-.frame-count {
-  font-weight: 700;
-}
+      &:hover {
+        transform: scale(1.1);
+      }
+    }
 
-.time-display {
-  font-size: 0.8em;
-  opacity: 0.9;
-}
+    &::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--main-color, #00b894);
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
 
-.frame-slider {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-}
+    &::-moz-range-track {
+      height: 6px;
+      background: var(--color-background-mute, #f2f2f2);
+      border-radius: 3px;
+      border: none;
+    }
+  }
 
-.frame-slider__range {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--color-background-mute, #f2f2f2);
-  outline: none;
-  cursor: pointer;
-  border: none;
-  appearance: none;
-  margin: 0;
-  padding: 0;
-}
+  &__navigation {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex: 1;
 
-.frame-slider__range::-webkit-slider-thumb {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--main-color, #00b894);
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
+    .flip-button {
+      flex: 1;
+      padding: 0.75em 0.5em;
+      font-size: 0.9em;
+    }
+  }
 
-.frame-slider__range::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
-}
+  &__counter {
+    font-size: 0.9em;
+    font-weight: 600;
+    padding: 0.75em 1em;
+    background: var(--main-color, #00b894);
+    color: white;
+    border-radius: var(--border-radius, 4px);
+    text-align: center;
+    border: none;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+  }
 
-.frame-slider__range::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--main-color, #00b894);
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
+  &__count {
+    font-weight: 700;
+  }
 
-.frame-slider__range::-moz-range-track {
-  height: 6px;
-  background: var(--color-background-mute, #f2f2f2);
-  border-radius: 3px;
-  border: none;
-}
+  &__time {
+    font-size: 0.8em;
+    opacity: 0.9;
+  }
 
-@media (min-width: 1024px) {
-  .actions {
+  @media (min-width: 1024px) {
     position: absolute;
     top: 0;
     right: calc(var(--actions-width) * -1);
     width: var(--actions-width);
   }
-}
 
-@media (max-width: 1024px) {
-  .actions {
+  @media (max-width: 1024px) {
     margin-top: 4em;
     flex-direction: column;
     gap: 0.5em;
     align-items: stretch;
-  }
 
-  .actions .flip-button {
-    height: auto;
-    min-height: 2.5em;
-  }
+    .flip-button {
+      height: auto;
+      min-height: 2.5em;
+    }
 
-  .frame-slider {
-    order: -1; /* Place slider above other controls */
-    margin-bottom: 0.5em;
-  }
+    &__slider {
+      order: -1; /* Place slider above other controls */
+      margin-bottom: 0.5em;
+    }
 
-  .frame-navigation {
-    flex-direction: row;
-    gap: 0.2em;
+    &__navigation {
+      flex-direction: row;
+      gap: 0.2em;
+    }
   }
 }
 </style>

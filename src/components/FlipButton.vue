@@ -20,7 +20,7 @@ defineEmits<{
 }>();
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .flip-button {
   background: var(--main-color, #00b894);
   border: var(--border);
@@ -38,39 +38,35 @@ defineEmits<{
   justify-content: center;
   text-decoration: none;
   box-sizing: border-box;
-}
-
-.flip-button:hover:not(:disabled) {
-  background-color: hsla(var(--main-color-hsl, 160, 100%, 37%), 0.8);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.flip-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  background-color: hsla(var(--main-color-hsl, 160, 100%, 37%), 0.9);
-}
-
-.flip-button--disabled,
-.flip-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-  background: var(--main-color, #00b894);
-}
-
-.flip-button:disabled:hover {
-  background: var(--main-color, #00b894);
-  transform: none;
-  box-shadow: none;
-}
-
-/* Match existing actions button styling */
-.flip-button {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  &:hover:not(:disabled) {
+    background-color: hsla(var(--main-color-hsl, 160, 100%, 37%), 0.8);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    background-color: hsla(var(--main-color-hsl, 160, 100%, 37%), 0.9);
+  }
+
+  &--disabled,
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    background: var(--main-color, #00b894);
+
+    &:hover {
+      background: var(--main-color, #00b894);
+      transform: none;
+      box-shadow: none;
+    }
+  }
 }
 </style>

@@ -36,27 +36,27 @@ function handleFileChange(event: Event) {
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .flip-file {
   position: relative;
-}
 
-.flip-file__label {
-  display: block;
-  text-align: center;
-  line-height: var(--frame-height);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--color-heading, #2c3e50);
-}
+  &__label {
+    display: block;
+    text-align: center;
+    line-height: var(--frame-height);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--color-heading, #2c3e50);
 
-.flip-file__label:hover {
-  background-color: var(--main-color-a, rgba(0, 184, 148, 0.1));
-}
+    &:hover {
+      background-color: var(--main-color-a, rgba(0, 184, 148, 0.1));
+    }
+  }
 
-.flip-file__input {
-  position: absolute;
-  z-index: -1;
-  opacity: 0;
+  &__input {
+    position: absolute;
+    z-index: -1;
+    opacity: 0;
+  }
 }
 </style>

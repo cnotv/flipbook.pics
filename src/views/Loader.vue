@@ -11,7 +11,7 @@ import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
 import FlipFrames from "../components/FlipFrames.vue";
 import FlipActions from "../components/FlipActions.vue";
-import FlipbookSizeSelector from "../components/FlipbookSizeSelector.vue";
+import FlipSizeSelector from "../components/FlipSizeSelector.vue";
 import { useVideoFrames } from "../composables/useVideoFrames";
 
 enum STATUS {
@@ -191,7 +191,7 @@ const printPreview = () => {
 
 <template>
   <section
-    class="frame"
+    class="loader-frame"
     :style="{
       '--frame-width': frameDimensions.width + 'px',
       '--frame-height': frameDimensions.height + 'px',
@@ -212,12 +212,12 @@ const printPreview = () => {
       />
 
       <!-- Video and canvas for frame capture -->
-      <video ref="video" class="video" muted>
+      <video ref="video" class="loader-frame__video" muted>
         <source :src="videoSrc" type="video/mp4" />
         <source :src="videoSrc" type="video/webm" />
         Your browser does not support the video tag.
       </video>
-      <canvas class="canvas" ref="canvas"></canvas>
+      <canvas class="loader-frame__canvas" ref="canvas"></canvas>
     </template>
 
     <FlipFile
@@ -229,10 +229,12 @@ const printPreview = () => {
       <h2>Add Video +</h2>
     </FlipFile>
 
-    <div class="loader" v-if="status === STATUS.loading"></div>
+    <div class="loader-frame__spinner" v-if="status === STATUS.loading"></div>
 
-    <div class="error" v-if="status === STATUS.error">
-      <p>Error loading video. Please try again or upload a different video.</p>
+    <div class="loader-frame__error" v-if="status === STATUS.error">
+      <p class="loader-frame__error-message">
+        Error loading video. Please try again or upload a different video.
+      </p>
       <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
     </div>
   </section>
@@ -260,8 +262,9 @@ const printPreview = () => {
   <!-- Load Sample Video - always visible -->
   <div class="sample-video">
     <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
-    <p class="sample-reference">
+    <p class="sample-video__reference">
       <a
+        class="sample-video__link"
         href="https://www.instagram.com/p/C25hJPEpJMk/"
         target="_blank"
         rel="noopener"
@@ -272,9 +275,9 @@ const printPreview = () => {
   </div>
 
   <!-- Flipbook Size Selector -->
-  <FlipbookSizeSelector @size-change="handleFlipbookSizeChange" />
+  <FlipSizeSelector @size-change="handleFlipbookSizeChange" />
 
-  <section class="sliders">
+  <section class="loader-sliders">
     <FlipSlider
       id="fps"
       v-model="fps"
@@ -298,9 +301,9 @@ const printPreview = () => {
   </section>
 </template>
 
-<style>
+<style lang="scss">
 /* CSS variables are now set dynamically in the template */
-.sliders {
+.loader-sliders {
   width: 100%;
   max-width: 560px;
   margin: 2rem auto;
@@ -311,24 +314,24 @@ const printPreview = () => {
   margin: 2rem auto;
   padding: 1rem;
   max-width: 560px;
+
+  &__reference {
+    margin-top: 0.5em;
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  &__link {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
-.sample-reference {
-  margin-top: 0.5em;
-  font-size: 0.9em;
-  opacity: 0.8;
-}
-
-.sample-reference a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.sample-reference a:hover {
-  text-decoration: underline;
-}
-
-.frame {
+.loader-frame {
   cursor: pointer;
   position: relative;
   min-width: 200px;
@@ -342,39 +345,44 @@ const printPreview = () => {
   max-width: 100%;
   border-radius: var(--border-radius);
   transition: all 0.3s ease;
-}
-.frame:hover {
-  background-color: var(--main-color-a);
-}
 
-.video,
-.canvas {
-  display: none;
-}
+  &:hover {
+    background-color: var(--main-color-a);
+  }
 
-.loader {
-  width: 3em;
-  height: 3em;
-  border: var(--border);
-  border-style: dashed;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: auto;
-  border-radius: 50%;
-  animation: rotate360 2s linear infinite;
-}
+  &__video,
+  &__canvas {
+    display: none;
+  }
 
-.error {
-  text-align: center;
-  padding: 2em;
-  color: #ff6b6b;
-}
+  &__spinner {
+    width: 3em;
+    height: 3em;
+    border: var(--border);
+    border-style: dashed;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    border-radius: 50%;
+    animation: rotate360 2s linear infinite;
+  }
 
-.error p {
-  margin-bottom: 1em;
+  &__error {
+    text-align: center;
+    padding: 2em;
+    color: #ff6b6b;
+
+    &-message {
+      margin-bottom: 1em;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    margin-bottom: 8em;
+  }
 }
 
 @keyframes rotate360 {
@@ -383,12 +391,6 @@ const printPreview = () => {
   }
   to {
     transform: rotate(360deg);
-  }
-}
-
-@media (min-width: 1024px) {
-  .frame {
-    margin-bottom: 8em;
   }
 }
 </style>
