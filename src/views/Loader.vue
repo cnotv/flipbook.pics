@@ -240,7 +240,7 @@ const printPreview = () => {
   </section>
 
   <!-- Actions under the video -->
-  <template v-if="videoSrc">
+  <template v-if="status === STATUS.loaded">
     <FlipActions
       :frames="frames"
       :isPlaying="isPlaying"
@@ -275,9 +275,12 @@ const printPreview = () => {
   </div>
 
   <!-- Flipbook Size Selector -->
-  <FlipSizeSelector @size-change="handleFlipbookSizeChange" />
+  <FlipSizeSelector
+    v-if="status === STATUS.loaded"
+    @size-change="handleFlipbookSizeChange"
+  />
 
-  <section class="loader-sliders">
+  <section v-if="status === STATUS.loaded" class="loader-sliders">
     <FlipSlider
       id="fps"
       v-model="fps"
