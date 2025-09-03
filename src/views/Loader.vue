@@ -320,11 +320,15 @@ const printPreview = () => {
   margin: 2rem auto;
   padding: 1rem;
   max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 
   &__reference {
     margin-top: 0.5em;
     font-size: 0.9em;
     opacity: 0.8;
+    text-align: center;
   }
 
   &__link {
