@@ -1,7 +1,9 @@
 <template>
   <div class="flip-size-selector">
     <div class="flip-size-selector__header">
-      <h3 class="flip-size-selector__title">Sizes</h3>
+      <h3 class="flip-size-selector__title" @click="toggleCollapsed">
+        Size: {{ getCurrentSizeName() }}
+      </h3>
       <div class="flip-size-selector__controls">
         <button class="flip-size-selector__unit-toggle" @click="toggleUnits">
           {{ useMetric ? "cm" : "in" }}
@@ -68,7 +70,7 @@ interface FlipbookSize {
 
 const selectedSize = ref("classic");
 const useMetric = ref(true); // Set metric as default
-const isCollapsed = ref(false); // Add collapsible state
+const isCollapsed = ref(true); // Start collapsed by default
 
 const flipbookSizes: FlipbookSize[] = [
   {
@@ -193,6 +195,11 @@ const getPreviewHeight = (size: FlipbookSize) => {
   return Math.round(size.height * scale);
 };
 
+const getCurrentSizeName = () => {
+  const currentSize = flipbookSizes.find((s) => s.id === selectedSize.value);
+  return currentSize ? currentSize.name : "Classic";
+};
+
 // Emit initial size
 const initialSize = flipbookSizes.find((s) => s.id === selectedSize.value);
 if (initialSize) {
@@ -214,7 +221,6 @@ if (initialSize) {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1.5rem;
   }
 
   &__title {
@@ -267,6 +273,7 @@ if (initialSize) {
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     max-height: 2000px;
+    margin-top: 1.5rem;
     opacity: 1;
 
     &--collapsed {
