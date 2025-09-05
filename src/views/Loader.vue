@@ -5,7 +5,6 @@
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
 import { ref, computed } from "vue";
-import * as pdfMake from "pdfmake/build/pdfmake";
 import FlipButton from "../components/FlipButton.vue";
 import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
@@ -13,6 +12,7 @@ import FlipFrames from "../components/FlipFrames.vue";
 import FlipActions from "../components/FlipActions.vue";
 import FlipSizeSelector from "../components/FlipSizeSelector.vue";
 import { useVideoFrames } from "../composables/useVideoFrames";
+import { generateFlipbookPDF } from "../helper/print";
 
 enum STATUS {
   empty,
@@ -147,50 +147,17 @@ const resetVideo = () => {
 const handleFlipbookSizeChange = (size: { width: number; height: number }) => {
   setFlipbookSize(size.width, size.height);
 };
+
+/**
+ * Generate and download PDF preview of the flipbook
+ */
 const printPreview = () => {
-  // Calculate dimensions maintaining aspect ratio
-  const maxWidth = 480 / 1.5;
-  const maxHeight = 288 / 1.5;
-
-  let pdfWidth, pdfHeight;
-  if (videoAspectRatio.value > maxWidth / maxHeight) {
-    // Video is wider, constrain by width
-    pdfWidth = maxWidth;
-    pdfHeight = maxWidth / videoAspectRatio.value;
-  } else {
-    // Video is taller, constrain by height
-    pdfHeight = maxHeight;
-    pdfWidth = maxHeight * videoAspectRatio.value;
-  }
-
-  // Create content array starting with cover if available
-  const content = [];
-
-  // Add cover as first page if it exists
-  if (cover.value) {
-    content.push({
-      image: cover.value,
-      width: pdfWidth,
-      height: pdfHeight,
-      alignment: "center" as const,
-    });
-  }
-
-  // Add all video frames
-  frames.value.forEach((image) => {
-    content.push({
-      image,
-      width: pdfWidth,
-      height: pdfHeight,
-      alignment: "center" as const,
-    });
+  generateFlipbookPDF({
+    frames: frames.value,
+    cover: cover.value,
+    size: frameDimensions.value,
+    ratio: videoAspectRatio.value,
   });
-
-  const document = {
-    pageMargins: [5, 5, 5, 5] as [number, number, number, number],
-    content,
-  };
-  pdfMake.createPdf(document).download();
 };
 </script>
 
