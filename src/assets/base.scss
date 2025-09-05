@@ -1,0 +1,320 @@
+/* SCSS Base Styles with BEM naming conventions */
+
+// Color variables
+:root {
+  --vt-c-white: #ffffff;
+  --vt-c-white-soft: #f8f8f8;
+  --vt-c-white-mute: #f2f2f2;
+
+  --vt-c-black: #181818;
+  --vt-c-black-soft: #222222;
+  --vt-c-black-mute: #282828;
+
+  --vt-c-indigo: #2c3e50;
+
+  --vt-c-divider-light-1: rgba(60, 60, 60, 0.29);
+  --vt-c-divider-light-2: rgba(60, 60, 60, 0.12);
+  --vt-c-divider-dark-1: rgba(84, 84, 84, 0.65);
+  --vt-c-divider-dark-2: rgba(84, 84, 84, 0.48);
+
+  --vt-c-text-light-1: var(--vt-c-indigo);
+  --vt-c-text-light-2: rgba(60, 60, 60, 0.66);
+  --vt-c-text-dark-1: var(--vt-c-white);
+  --vt-c-text-dark-2: rgba(235, 235, 235, 0.64);
+
+  // Semantic color variables for this project
+  --color-background: var(--vt-c-white);
+  --color-background-soft: var(--vt-c-white-soft);
+  --color-background-mute: var(--vt-c-white-mute);
+
+  --color-border: var(--vt-c-divider-light-2);
+  --color-border-hover: var(--vt-c-divider-light-1);
+
+  --color-heading: var(--vt-c-text-light-1);
+  --color-text: var(--vt-c-text-light-1);
+  --color-text-a: var(--vt-c-white);
+
+  --font-size: 15px;
+  --main-color-hsl: 160, 100%, 37%;
+  --main-color: hsla(var(--main-color-hsl), 1);
+  --main-color-a: hsla(var(--main-color-hsl), 0.1);
+
+  --bg-color: var(--main-color);
+  --bg-color-w: var(--vt-c-white);
+
+  --border-width: 3px;
+  --border-radius: 4px;
+  --border: var(--border-width) solid var(--bg-color);
+
+  --section-gap: 160px;
+
+  // Additional project-specific colors
+  --paper-white: #fefefe;
+  --paper-warm: #fefcf8;
+  --paper-cream: #fdf9f4;
+
+  @media (prefers-color-scheme: dark) {
+    --color-background: var(--vt-c-black);
+    --color-background-soft: var(--vt-c-black-soft);
+    --color-background-mute: var(--vt-c-black-mute);
+
+    --color-border: var(--vt-c-divider-dark-2);
+    --color-border-hover: var(--vt-c-divider-dark-1);
+
+    --color-heading: var(--vt-c-text-dark-1);
+    --color-text: var(--vt-c-text-dark-2);
+
+    --paper-white: var(--vt-c-black-soft);
+    --paper-warm: var(--vt-c-black-mute);
+    --paper-cream: var(--vt-c-black);
+  }
+}
+
+// Global theme classes with BEM naming
+.theme {
+  &--light {
+    --color-background: var(--vt-c-white);
+    --color-background-soft: var(--vt-c-white-soft);
+    --color-background-mute: var(--vt-c-white-mute);
+    --color-text: var(--vt-c-text-light-1);
+    --color-heading: var(--vt-c-text-light-1);
+    --color-border: var(--vt-c-divider-light-2);
+    --color-border-hover: var(--vt-c-divider-light-1);
+    --paper-white: #fefefe;
+    --paper-warm: #fefcf8;
+    --paper-cream: #fdf9f4;
+  }
+
+  &--dark {
+    --color-background: var(--vt-c-black);
+    --color-background-soft: var(--vt-c-black-soft);
+    --color-background-mute: var(--vt-c-black-mute);
+    --color-text: var(--vt-c-text-dark-2);
+    --color-heading: var(--vt-c-text-dark-1);
+    --color-border: var(--vt-c-divider-dark-2);
+    --color-border-hover: var(--vt-c-divider-dark-1);
+    --paper-white: var(--vt-c-black-soft);
+    --paper-warm: var(--vt-c-black-mute);
+    --paper-cream: var(--vt-c-black);
+  }
+}
+
+// Base styles
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  position: relative;
+  font-weight: normal;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--color-text);
+  background: var(--color-background);
+  transition: color 0.5s, background-color 0.5s;
+  line-height: 1.6;
+  font-family: 
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
+  font-size: var(--font-size);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// Base button styles with BEM naming
+.button {
+  border: none;
+  background-color: var(--bg-color);
+  padding: 1em;
+  font-size: var(--font-size);
+  color: var(--color-text-a);
+  line-height: 1;
+  display: inline-block;
+  cursor: pointer;
+  min-width: 3em;
+  text-align: center;
+  font-family: inherit;
+  border-radius: var(--border-radius);
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--color-text);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  &--disabled,
+  &:disabled {
+    color: grey;
+    background-color: lightgray;
+    border-color: lightgray;
+    cursor: not-allowed;
+    transform: none;
+
+    &:hover {
+      color: grey;
+      background-color: lightgray;
+      transform: none;
+      box-shadow: none;
+    }
+  }
+
+  // Size modifiers
+  &--small {
+    padding: 0.5em 0.75em;
+    font-size: 0.875em;
+    min-width: 2.5em;
+  }
+
+  &--large {
+    padding: 1.25em 1.5em;
+    font-size: 1.125em;
+    min-width: 4em;
+  }
+
+  // Style modifiers  
+  &--outline {
+    background-color: transparent;
+    border: 2px solid var(--bg-color);
+    color: var(--bg-color);
+
+    &:hover {
+      background-color: var(--bg-color);
+      color: var(--color-text-a);
+    }
+  }
+
+  &--ghost {
+    background-color: transparent;
+    border: none;
+    color: var(--bg-color);
+
+    &:hover {
+      background-color: var(--main-color-a);
+    }
+  }
+}
+
+// Legacy button support
+button {
+  @extend .button;
+}
+
+// Form labels
+.label {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-heading);
+  display: block;
+  margin-bottom: 0.5em;
+
+  &--inline {
+    display: inline;
+    margin-bottom: 0;
+    margin-right: 0.5em;
+  }
+
+  &--required {
+    &::after {
+      content: " *";
+      color: #e74c3c;
+    }
+  }
+}
+
+// Legacy label support
+label {
+  @extend .label;
+}
+
+// App layout with BEM naming
+.app {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--color-border);
+    margin-bottom: 2rem;
+  }
+
+  &__main {
+    min-height: calc(100vh - 200px);
+  }
+
+  &__footer {
+    text-align: center;
+    padding: 2rem 0;
+    color: var(--color-text-mute, var(--vt-c-text-light-2));
+    border-top: 1px solid var(--color-border);
+    margin-top: 2rem;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+
+    &__header {
+      flex-direction: column;
+      gap: 1rem;
+      text-align: center;
+    }
+  }
+}
+
+// Utility classes with BEM naming
+.u {
+  &-text {
+    &--center { text-align: center; }
+    &--left { text-align: left; }
+    &--right { text-align: right; }
+    &--muted { color: var(--color-text-mute, var(--vt-c-text-light-2)); }
+  }
+
+  &-display {
+    &--block { display: block; }
+    &--inline { display: inline; }
+    &--flex { display: flex; }
+    &--grid { display: grid; }
+    &--hidden { display: none; }
+  }
+
+  &-spacing {
+    &--margin {
+      &-0 { margin: 0; }
+      &-sm { margin: 0.5rem; }
+      &-md { margin: 1rem; }
+      &-lg { margin: 1.5rem; }
+      &-xl { margin: 2rem; }
+    }
+    
+    &--padding {
+      &-0 { padding: 0; }
+      &-sm { padding: 0.5rem; }
+      &-md { padding: 1rem; }
+      &-lg { padding: 1.5rem; }
+      &-xl { padding: 2rem; }
+    }
+  }
+}

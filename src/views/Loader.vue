@@ -1,25 +1,17 @@
 <script lang="ts" setup>
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /**
  * MediaStreamTrackProcessor? https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrackProcessor
  * VideoDecoder? https://developer.mozilla.org/en-US/docs/Web/API/VideoDecoder
  * HTMLVideoElement.requestVideoFrameCallback? https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement
  */
-import { ref, computed, watch } from "vue";
-import * as pdfMake from "pdfmake/build/pdfmake";
+import { ref, computed } from "vue";
 import FlipButton from "../components/FlipButton.vue";
-import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
-import {
-  calculateTargetFrameTimes,
-  shouldCaptureFrame,
-  calculateOptimalPlaybackRate,
-} from "../helper/frameGeneration";
-
-interface VideoFrameMetadata {
-  width: number;
-  height: number;
-}
+import FlipFrames from "../components/FlipFrames.vue";
+import FlipActions from "../components/FlipActions.vue";
+import FlipSizeSelector from "../components/FlipSizeSelector.vue";
+import { useVideoFrames } from "../composables/useVideoFrames";
+import { generateFlipbookPDF } from "../helper/print";
 
 enum STATUS {
   empty,
@@ -28,178 +20,70 @@ enum STATUS {
   error,
 }
 
-const fps = ref("30");
-const playbackSpeed = ref("0");
-const currentFrameIndex = ref(0);
-const videoDuration = ref(0);
-const videoSrc = ref<string | null>();
-const cover = ref<string | null>();
-const video = ref<HTMLVideoElement>();
 const status = ref(STATUS.empty);
+const cover = ref<string | null>(null);
 
-const canvas = ref<HTMLCanvasElement>();
-const totalFrames = ref<string[]>([]);
-const frames = ref<string[]>([]);
-const videoAspectRatio = ref<number>(16 / 9); // Default aspect ratio
+// Use the video frames composable
+const {
+  fps,
+  playbackSpeed,
+  currentFrameIndex,
+  videoDuration,
+  videoSrc,
+  video,
+  canvas,
+  frames,
+  videoAspectRatio,
+  currentTime,
+  totalTime,
+  isPlaying,
+  loadingText,
+  flipbookWidth,
+  flipbookHeight,
+  handleVideoUpload: composableHandleVideoUpload,
+  loadSampleVideo: composableLoadSampleVideo,
+  resetVideo: composableResetVideo,
+  togglePlay,
+  previousFrame,
+  nextFrame,
+  setFramePosition,
+  handleFpsChange,
+  setFlipbookSize,
+} = useVideoFrames();
 
 /**
- * Format time in seconds to MM:SS.mmm format (with milliseconds)
+ * Estimate the number of frames that will be generated
  */
-const formatTime = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  const wholeSeconds = Math.floor(remainingSeconds);
-  const milliseconds = Math.floor((remainingSeconds - wholeSeconds) * 1000);
+const estimatedFrameCount = computed(() => {
+  const fpsValue = parseInt(fps.value) || 0;
+  const duration = videoDuration.value || 0;
 
-  return `${minutes}:${wholeSeconds
-    .toString()
-    .padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
-};
-
-/**
- * Calculate current time based on frame position within the video duration
- */
-const currentTime = computed(() => {
-  if (frames.value.length === 0 || videoDuration.value === 0) {
-    return formatTime(0);
+  if (fpsValue === 0 || duration === 0) {
+    return 0;
   }
 
-  // Calculate the time position based on current frame relative to total frames
-  const timeInSeconds =
-    (currentFrameIndex.value / (frames.value.length - 1)) * videoDuration.value;
-  return formatTime(timeInSeconds);
+  return Math.ceil(fpsValue * duration);
 });
 
 /**
- * Calculate total video time from the video duration
+ * Calculate CSS frame dimensions based on flipbook size
  */
-const totalTime = computed(() => {
-  return formatTime(videoDuration.value);
+const frameDimensions = computed(() => {
+  const pixelsPerInch = 60; // Scale factor for display
+  const width = flipbookWidth.value * pixelsPerInch;
+  const height = flipbookHeight.value * pixelsPerInch;
+  const maxWidth = 560; // Maximum display width
+
+  // Scale down if too large
+  const scale = Math.min(1, maxWidth / width);
+
+  return {
+    width: Math.round(width * scale),
+    height: Math.round(height * scale),
+    aspectRatio: flipbookWidth.value / flipbookHeight.value,
+  };
 });
 
-const targetFrameTimes = ref<number[]>([]);
-const currentTargetIndex = ref(0);
-
-// Animation state for frame playback
-const isPlaying = ref(false);
-const playInterval = ref<NodeJS.Timeout | null>(null);
-
-/**
- * Calculate animation interval based on playback speed
- */
-const calculateAnimationInterval = (speed: number): number => {
-  // Base interval of 100ms (10 FPS), modified by speed
-  // Positive speed = faster, negative speed = slower
-  // Speed 0 = default (100ms), Speed 1 = 50ms, Speed -1 = 200ms
-  if (speed === 0) {
-    return 100; // Default: 10 FPS
-  } else if (speed > 0) {
-    // Faster playback: reduce interval (min 16ms = ~60 FPS)
-    return Math.max(16, 100 / (1 + speed));
-  } else {
-    // Slower playback: increase interval (max 2000ms = 0.5 FPS)
-    return Math.min(2000, 100 * (1 + Math.abs(speed)));
-  }
-};
-
-/**
- * Watch playback speed changes and update animation in real-time
- */
-watch(playbackSpeed, (newSpeed) => {
-  // Only update if currently playing
-  if (isPlaying.value && playInterval.value) {
-    // Clear current interval
-    clearInterval(playInterval.value);
-
-    // Calculate new interval
-    const speed = parseFloat(newSpeed) || 0;
-    const intervalMs = calculateAnimationInterval(speed);
-
-    // Start new interval with updated speed
-    playInterval.value = setInterval(() => {
-      // Move to next frame, loop back to start when reaching the end
-      if (currentFrameIndex.value < frames.value.length - 1) {
-        currentFrameIndex.value++;
-      } else {
-        currentFrameIndex.value = 0; // Loop back to first frame
-      }
-    }, intervalMs);
-  }
-});
-
-/**
- * Video callback loop for capturing frames at precise time intervals
- */
-const getFrame = async (
-  _: DOMHighResTimeStamp,
-  { width, height }: VideoFrameMetadata
-) => {
-  // Update aspect ratio based on actual video dimensions
-  videoAspectRatio.value = width / height;
-
-  const videoEl = video.value!;
-  const currentTime = videoEl.currentTime;
-
-  // Check if we should capture this frame using utility function
-  if (shouldCaptureFrame(currentTime, targetFrameTimes.value, currentTargetIndex.value)) {
-    // Process frame immediately during video capture
-    await drawFrame(width, height, canvas.value!);
-    currentTargetIndex.value++;
-  }
-
-  // Continue until video ends or all target frames captured
-  if (!videoEl.ended && currentTargetIndex.value < targetFrameTimes.value.length) {
-    videoEl["requestVideoFrameCallback"](getFrame);
-  } else {
-    // Final update when done
-    updateFrames();
-  }
-};
-
-/**
- * Generate image frame from the video using canvas and store it in data64
- */
-const drawFrame = async (width: number, height: number, page: HTMLCanvasElement) => {
-  const bitmap = await createImageBitmap(video.value!);
-
-  // Use a consistent canvas size that matches our CSS frame dimensions
-  const frameWidth = 560; // matches --frame-width
-  const frameHeight = Math.round(frameWidth * (9 / 16)); // matches --frame-height calculation
-
-  page.width = frameWidth;
-  page.height = frameHeight;
-
-  const ctx = page.getContext("2d");
-  if (ctx) {
-    // Clear canvas
-    ctx.clearRect(0, 0, frameWidth, frameHeight);
-
-    // Calculate dimensions to fit the video within the frame while maintaining aspect ratio
-    const videoAspect = width / height;
-    const frameAspect = frameWidth / frameHeight;
-
-    let drawWidth, drawHeight, drawX, drawY;
-
-    if (videoAspect > frameAspect) {
-      // Video is wider - fit to width
-      drawWidth = frameWidth;
-      drawHeight = frameWidth / videoAspect;
-      drawX = 0;
-      drawY = (frameHeight - drawHeight) / 2;
-    } else {
-      // Video is taller - fit to height
-      drawHeight = frameHeight;
-      drawWidth = frameHeight * videoAspect;
-      drawX = (frameWidth - drawWidth) / 2;
-      drawY = 0;
-    }
-
-    // Draw the image centered and maintaining aspect ratio
-    ctx.drawImage(bitmap, drawX, drawY, drawWidth, drawHeight);
-    const image = page.toDataURL("image/jpeg", 0.9);
-    totalFrames.value.push(image);
-  }
-};
 /**
  * Add cover to the frames preview
  */
@@ -217,20 +101,17 @@ const handleCoverUpload = (event: Event) => {
 /**
  * Load video, render it and add to the frames preview
  */
-const handleVideoUpload = (event: Event) => {
-  status.value = STATUS.loading;
-  const target = event.target as HTMLInputElement;
-  const file: File = target.files![0];
-  const reader = new FileReader();
-
-  reader.readAsDataURL(file);
-  reader.onload = () => {
-    videoSrc.value = String(reader.result);
-  };
-  reader.onloadend = () => {
+const handleVideoUpload = async (event: Event) => {
+  try {
+    status.value = STATUS.loading;
+    // Reset cover when loading new video
+    cover.value = null;
+    await composableHandleVideoUpload(event);
     status.value = STATUS.loaded;
-    generateFrames();
-  };
+  } catch (error) {
+    status.value = STATUS.error;
+    console.error("Failed to upload video:", error);
+  }
 };
 
 /**
@@ -239,77 +120,14 @@ const handleVideoUpload = (event: Event) => {
  */
 const loadSampleVideo = async () => {
   status.value = STATUS.loading;
+  // Reset cover when loading sample video
+  cover.value = null;
 
   try {
-    // Set the video source
-    videoSrc.value = "/kekeflipnote.mp4";
+    await composableLoadSampleVideo();
     status.value = STATUS.loaded;
-
-    // Wait for Vue to update the DOM
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    const videoEl = video.value;
-    if (videoEl) {
-      // Ensure video loads the new source
-      videoEl.load();
-
-      // Wait for video metadata to be loaded (this ensures duration is available)
-      await new Promise((resolve, reject) => {
-        const handleMetadata = () => {
-          videoEl.removeEventListener("loadedmetadata", handleMetadata);
-          videoEl.removeEventListener("error", handleError);
-          // Capture duration and aspect ratio immediately
-          videoDuration.value = videoEl.duration;
-          videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
-          resolve(undefined);
-        };
-
-        const handleError = (error: Event) => {
-          videoEl.removeEventListener("loadedmetadata", handleMetadata);
-          videoEl.removeEventListener("error", handleError);
-          reject(error);
-        };
-
-        videoEl.addEventListener("loadedmetadata", handleMetadata);
-        videoEl.addEventListener("error", handleError);
-      });
-
-      // Now generate frames
-      generateFrames();
-    }
   } catch (error) {
-    console.error("Error loading sample video:", error);
     status.value = STATUS.error;
-  }
-};
-
-/**
- * Generate frames from videos from given uploaded video file
- */
-const generateFrames = () => {
-  totalFrames.value = [];
-  currentTargetIndex.value = 0;
-
-  const videoEl = video.value;
-  if (videoEl) {
-    // Wait for video metadata to load to get accurate dimensions and duration
-    videoEl.addEventListener("loadedmetadata", () => {
-      videoAspectRatio.value = videoEl.videoWidth / videoEl.videoHeight;
-      videoDuration.value = videoEl.duration;
-
-      // Calculate deterministic frame capture times using utility function
-      const targetFps = parseInt(fps.value) || 30;
-      targetFrameTimes.value = calculateTargetFrameTimes(videoEl.duration, targetFps);
-
-      // Reset video to start and begin capture
-      videoEl.currentTime = 0;
-
-      // Calculate optimal playback rate for consistent processing
-      videoEl.playbackRate = calculateOptimalPlaybackRate(videoEl.duration, targetFps);
-    });
-
-    videoEl.play();
-    videoEl["requestVideoFrameCallback"](getFrame);
   }
 };
 
@@ -317,259 +135,59 @@ const generateFrames = () => {
  * Reset stored video information
  */
 const resetVideo = () => {
-  // Stop any playing animation
-  if (playInterval.value) {
-    clearInterval(playInterval.value);
-    playInterval.value = null;
-  }
-  isPlaying.value = false;
-
+  composableResetVideo();
   status.value = STATUS.empty;
-  videoSrc.value = null;
-  totalFrames.value = [];
-  frames.value = [];
-  currentFrameIndex.value = 0;
-  videoDuration.value = 0; // Reset duration to 0
-  targetFrameTimes.value = [];
-  currentTargetIndex.value = 0;
+  cover.value = null;
 };
 
 /**
- * Toggle frame playback - start/stop looping through frames
+ * Handle flipbook size change
  */
-const togglePlay = () => {
-  if (isPlaying.value) {
-    // Stop playing
-    if (playInterval.value) {
-      clearInterval(playInterval.value);
-      playInterval.value = null;
-    }
-    isPlaying.value = false;
-  } else {
-    // Start playing
-    if (frames.value.length > 0) {
-      isPlaying.value = true;
-
-      // Calculate interval based on playback speed slider using helper function
-      const speed = parseFloat(playbackSpeed.value) || 0;
-      const intervalMs = calculateAnimationInterval(speed);
-
-      playInterval.value = setInterval(() => {
-        // Move to next frame, loop back to start when reaching the end
-        if (currentFrameIndex.value < frames.value.length - 1) {
-          currentFrameIndex.value++;
-        } else {
-          currentFrameIndex.value = 0; // Loop back to first frame
-        }
-      }, intervalMs);
-    }
-  }
+const handleFlipbookSizeChange = (size: { width: number; height: number }) => {
+  setFlipbookSize(size.width, size.height);
 };
 
 /**
- * Navigate to previous frame
+ * Generate and download PDF preview of the flipbook
  */
-const previousFrame = () => {
-  // Stop playing when manually navigating
-  if (playInterval.value) {
-    clearInterval(playInterval.value);
-    playInterval.value = null;
-  }
-  isPlaying.value = false;
-
-  if (currentFrameIndex.value > 0) {
-    currentFrameIndex.value--;
-  }
-};
-
-/**
- * Navigate to next frame
- */
-const nextFrame = () => {
-  // Stop playing when manually navigating
-  if (playInterval.value) {
-    clearInterval(playInterval.value);
-    playInterval.value = null;
-  }
-  isPlaying.value = false;
-
-  if (currentFrameIndex.value < frames.value.length - 1) {
-    currentFrameIndex.value++;
-  }
-};
-
-/**
- * Update frames array with captured frames - now deterministic based on time intervals
- */
-const updateFrames = () => {
-  // Stop any playing animation when frames change
-  if (playInterval.value) {
-    clearInterval(playInterval.value);
-    playInterval.value = null;
-  }
-  isPlaying.value = false;
-
-  // With our new deterministic approach, totalFrames already contains
-  // the exact frames we want based on the FPS setting and precise timing
-  frames.value = [...totalFrames.value];
-
-  // Reset current frame index when frames change
-  currentFrameIndex.value = 0;
-
-  // Automatically start playing after frames are generated
-  if (frames.value.length > 0) {
-    // Use a small delay to ensure the frames are properly updated in the DOM
-    setTimeout(() => {
-      togglePlay();
-    }, 100);
-  }
-};
-
-/**
- * Handle FPS changes - regenerate frames with new FPS and toggle play
- */
-const handleFpsChange = () => {
-  // Only regenerate if we have a video loaded
-  if (videoSrc.value && video.value) {
-    generateFrames();
-  }
-};
 const printPreview = () => {
-  // Calculate dimensions maintaining aspect ratio
-  const maxWidth = 480 / 1.5;
-  const maxHeight = 288 / 1.5;
-
-  let pdfWidth, pdfHeight;
-  if (videoAspectRatio.value > maxWidth / maxHeight) {
-    // Video is wider, constrain by width
-    pdfWidth = maxWidth;
-    pdfHeight = maxWidth / videoAspectRatio.value;
-  } else {
-    // Video is taller, constrain by height
-    pdfHeight = maxHeight;
-    pdfWidth = maxHeight * videoAspectRatio.value;
-  }
-
-  // Create content array starting with cover if available
-  const content = [];
-
-  // Add cover as first page if it exists
-  if (cover.value) {
-    content.push({
-      image: cover.value,
-      width: pdfWidth,
-      height: pdfHeight,
-      alignment: "center" as const,
-    });
-  }
-
-  // Add all video frames
-  frames.value.forEach((image) => {
-    content.push({
-      image,
-      width: pdfWidth,
-      height: pdfHeight,
-      alignment: "center" as const,
-    });
+  generateFlipbookPDF({
+    frames: frames.value,
+    cover: cover.value,
+    size: frameDimensions.value,
+    ratio: videoAspectRatio.value,
   });
-
-  const document = {
-    pageMargins: [5, 5, 5, 5] as [number, number, number, number],
-    content,
-  };
-  pdfMake.createPdf(document).download();
 };
 </script>
 
 <template>
-  <section class="frame">
+  <section
+    class="loader-frame"
+    :style="{
+      '--frame-width': frameDimensions.width + 'px',
+      '--frame-height': frameDimensions.height + 'px',
+      '--video-ratio': (1 / frameDimensions.aspectRatio).toString(),
+      width: frameDimensions.width + 'px',
+      height: frameDimensions.height + 'px',
+    }"
+  >
     <!-- loading video before the src causes error in the DOM -->
     <template v-if="videoSrc">
-      <div class="frames">
-        <!-- Show cover as the topmost frame if it exists -->
-        <img
-          v-if="cover"
-          class="frames__item"
-          :style="{
-            zIndex: 1,
-            display: 'block',
-          }"
-          :src="cover"
-          alt="Cover"
-        />
-
-        <!-- Show current frame when navigating manually -->
-        <img
-          v-if="frames.length > 0"
-          class="frames__item frames__item--current"
-          :src="frames[currentFrameIndex]"
-          alt="Current frame"
-        />
-
-        <!-- Show stack effect for remaining frames -->
-        <img
-          class="frames__item"
-          :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-          :style="{
-            zIndex: -index,
-            display: index < frames.length - 10 ? 'none' : 'block',
-            opacity:
-              index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
-          }"
-          :src="frame"
-          alt=""
-          v-for="(frame, index) in frames"
-          :key="`stack-${index}`"
-        />
-      </div>
+      <FlipFrames
+        :frames="frames"
+        :cover="cover"
+        :current-frame-index="currentFrameIndex"
+        :loading-status="status"
+        :loading-text="loadingText"
+      />
 
       <!-- Video and canvas for frame capture -->
-      <video ref="video" class="video" muted>
+      <video ref="video" class="loader-frame__video" muted>
         <source :src="videoSrc" type="video/mp4" />
         <source :src="videoSrc" type="video/webm" />
         Your browser does not support the video tag.
       </video>
-      <canvas class="canvas" ref="canvas"></canvas>
-
-      <!-- Actions -->
-      <div class="actions">
-        <FlipButton @click="resetVideo()">X</FlipButton>
-        <FlipButton :disabled="!totalFrames.length" @click="togglePlay()">
-          {{ isPlaying ? "⏸" : "▶" }}
-        </FlipButton>
-        <FlipButton :disabled="!totalFrames.length" @click="printPreview()">
-          Print
-        </FlipButton>
-
-        <!-- Frame navigation -->
-        <div class="frame-navigation" v-if="frames.length > 0">
-          <FlipButton :disabled="currentFrameIndex === 0" @click="previousFrame()">
-            ←
-          </FlipButton>
-          <div class="frame-counter">
-            <div class="frame-count">
-              {{ currentFrameIndex + 1 }} / {{ frames.length }}
-            </div>
-            <div class="time-display">{{ currentTime }} / {{ totalTime }}</div>
-          </div>
-          <FlipButton
-            :disabled="currentFrameIndex >= frames.length - 1"
-            @click="nextFrame()"
-          >
-            →
-          </FlipButton>
-        </div>
-
-        <FlipFile
-          v-if="!cover"
-          id="cover"
-          accept="image/*"
-          @change="handleCoverUpload"
-          class="cover-upload"
-          >+ Cover</FlipFile
-        >
-        <FlipButton v-else @click="cover = null"> - Cover </FlipButton>
-      </div>
+      <canvas class="loader-frame__canvas" ref="canvas"></canvas>
     </template>
 
     <FlipFile
@@ -581,219 +199,140 @@ const printPreview = () => {
       <h2>Add Video +</h2>
     </FlipFile>
 
-    <div class="loader" v-if="status === STATUS.loading"></div>
+    <div class="loader-frame__spinner" v-if="status === STATUS.loading"></div>
 
-    <div class="error" v-if="status === STATUS.error">
-      <p>Error loading video. Please try again or upload a different video.</p>
+    <div class="loader-frame__error" v-if="status === STATUS.error">
+      <p class="loader-frame__error-message">
+        Error loading video. Please try again or upload a different video.
+      </p>
       <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
     </div>
-
-    <div class="sample-video">
-      <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
-      <p class="sample-reference">
-        <a href="https://www.instagram.com/p/C25hJPEpJMk/" target="_blank" rel="noopener">
-          Reference: @kekeflipnote
-        </a>
-      </p>
-    </div>
   </section>
 
-  <section class="sliders">
-    <FlipSlider
-      id="fps"
-      v-model="fps"
-      label="FPS:"
-      :min="1"
-      :max="120"
-      @change="handleFpsChange"
-    >
-    </FlipSlider>
+  <!-- Actions under the video -->
+  <template v-if="status === STATUS.loaded">
+    <FlipActions
+      :frames="frames"
+      :isPlaying="isPlaying"
+      :currentFrameIndex="currentFrameIndex"
+      :currentTime="currentTime"
+      :totalTime="totalTime"
+      :cover="cover"
+      :fps="fps"
+      :playbackSpeed="playbackSpeed"
+      :videoDuration="videoDuration"
+      :estimatedFrameCount="estimatedFrameCount"
+      @reset="resetVideo()"
+      @togglePlay="togglePlay()"
+      @print="printPreview()"
+      @previousFrame="previousFrame()"
+      @nextFrame="nextFrame()"
+      @framePositionChange="setFramePosition"
+      @coverUpload="handleCoverUpload"
+      @removeCover="cover = null"
+      @fpsChange="handleFpsChange"
+      @update:fps="fps = $event"
+      @update:playbackSpeed="playbackSpeed = $event"
+    />
+  </template>
 
-    <FlipSlider
-      id="playbackSpeed"
-      v-model="playbackSpeed"
-      label="Playback speed:"
-      :min="-10"
-      :max="10"
-      :step="0.1"
-    ></FlipSlider>
-  </section>
+  <!-- Load Sample Video - always visible -->
+  <div class="sample-video" v-if="status !== STATUS.loaded">
+    <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
+    <p class="sample-video__reference">
+      <a
+        class="sample-video__link"
+        href="https://www.instagram.com/p/C25hJPEpJMk/"
+        target="_blank"
+        rel="noopener"
+      >
+        Reference: @kekeflipnote
+      </a>
+    </p>
+  </div>
+
+  <!-- Flipbook Size Selector -->
+  <FlipSizeSelector
+    v-if="status === STATUS.loaded"
+    @size-change="handleFlipbookSizeChange"
+  />
 </template>
 
-<style>
-:root {
-  --video-ratio: 9 / 16;
-  --frame-padding: 50px;
-  --frame-width: 560px;
-  --actions-width: 200px;
-  --frame-height: calc(var(--frame-width) * var(--video-ratio));
-}
-
-.sliders {
-  width: var(--frame-width);
-
-  margin-left: auto;
-  margin-right: auto;
-}
-
+<style lang="scss">
 .sample-video {
   text-align: center;
-  margin-top: 2em;
-  padding: 1em;
-  border-top: 1px solid var(--border-color, #ccc);
+  margin: 2rem auto;
+  padding: 1rem;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  &__reference {
+    margin-top: 0.5em;
+    font-size: 0.9em;
+    opacity: 0.8;
+    text-align: center;
+  }
+
+  &__link {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }
 
-.sample-reference {
-  margin-top: 0.5em;
-  font-size: 0.9em;
-  opacity: 0.8;
-}
-
-.sample-reference a {
-  color: inherit;
-  text-decoration: none;
-}
-
-.sample-reference a:hover {
-  text-decoration: underline;
-}
-
-.frame {
+.loader-frame {
   cursor: pointer;
   position: relative;
-  width: var(--frame-width);
-  height: var(--frame-height);
-  border: var(--border);
+  min-width: 200px;
+  min-height: 150px;
+  // border: var(--border);
   box-sizing: content-box;
-  margin-bottom: 8em;
+  margin-bottom: 2rem;
   margin-top: 1em;
   margin-left: auto;
   margin-right: auto;
   max-width: 100%;
   border-radius: var(--border-radius);
-}
-.frame:hover {
-  background-color: var(--main-color-a);
-}
+  transition: all 0.3s ease;
 
-.video,
-.canvas {
-  display: none;
-}
+  &:hover {
+    background-color: var(--main-color-a);
+  }
 
-.frames {
-  position: relative;
-  width: var(--frame-width);
-  height: var(--frame-height);
-  z-index: 100;
-  -webkit-perspective: 1300px;
-  perspective: 1300px;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
-  max-width: 100%;
-  overflow: hidden; /* Only the frames container needs overflow hidden */
-  border-radius: var(--border-radius);
-}
+  &__video,
+  &__canvas {
+    display: none;
+  }
 
-.frames__item {
-  position: absolute;
-  width: var(--frame-width);
-  height: var(--frame-height);
-  object-fit: contain; /* Maintain aspect ratio within fixed dimensions */
-  object-position: center; /* Center the content */
-  /* box-shadow: 1px 1px 1px 1px white; */
-  -webkit-transform-style: preserve-3d;
-  transform-style: preserve-3d;
-  -webkit-transition-property: -webkit-transform;
-  transition-property: transform;
-  max-width: 100%;
-}
+  &__spinner {
+    width: 3em;
+    height: 3em;
+    border: var(--border);
+    border-style: dashed;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+    border-radius: 50%;
+    animation: rotate360 2s linear infinite;
+  }
 
-.frames__item--flipped {
-  transform: rotateY(-75deg);
-  transform-origin: left center;
-  opacity: 0.5;
-  transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
-    opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
-}
+  &__error {
+    text-align: center;
+    padding: 2em;
+    color: #ff6b6b;
 
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: 1em;
-}
-
-.actions .flip-button {
-  flex: 1;
-  font-size: 0.9em;
-  padding: 0.75em 1em;
-}
-
-.frame-navigation {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  flex: 1;
-}
-
-.frame-navigation .flip-button {
-  flex: 1;
-  padding: 0.75em 0.5em;
-  font-size: 0.9em;
-}
-
-.frame-counter {
-  font-size: 0.9em;
-  font-weight: 600;
-  padding: 0.75em 1em;
-  background: var(--main-color, #00b894);
-  color: white;
-  border-radius: var(--border-radius, 4px);
-  text-align: center;
-  border: none;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-}
-
-.frame-count {
-  font-weight: 700;
-}
-
-.time-display {
-  font-size: 0.8em;
-  opacity: 0.9;
-}
-
-.frames__item--current {
-  z-index: 2 !important;
-}
-
-.loader {
-  width: 3em;
-  height: 3em;
-  border: var(--border);
-  border-style: dashed;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  margin: auto;
-  border-radius: 50%;
-  animation: rotate360 2s linear infinite;
-}
-
-.error {
-  text-align: center;
-  padding: 2em;
-  color: #ff6b6b;
-}
-
-.error p {
-  margin-bottom: 1em;
+    &-message {
+      margin-bottom: 1em;
+    }
+  }
 }
 
 @keyframes rotate360 {
@@ -803,53 +342,5 @@ const printPreview = () => {
   to {
     transform: rotate(360deg);
   }
-}
-
-@media (min-width: 1024px) {
-  .frame {
-    margin-bottom: 8em;
-  }
-
-  .actions {
-    position: absolute;
-    top: 0;
-    right: calc(var(--actions-width) * -1);
-    width: var(--actions-width);
-  }
-}
-@media (max-width: 1024px) {
-  .actions {
-    margin-top: 4em;
-    flex-direction: row;
-    gap: 0.2em;
-  }
-}
-
-/* Cover upload styling */
-.cover-upload .flip-file__label {
-  line-height: inherit;
-  background: var(--main-color, #00b894);
-  color: white;
-  padding: 0.75em 1em;
-  border-radius: var(--border-radius, 4px);
-  font-weight: 600;
-  font-size: 0.9em;
-  transition: all 0.2s ease;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  box-sizing: border-box;
-  flex: 1;
-}
-
-.cover-upload .flip-file__label:hover {
-  background: var(--main-color, #00b894);
-  transform: translateY(-1px);
-}
-
-.cover-upload .flip-file__label:active {
-  transform: translateY(0);
 }
 </style>

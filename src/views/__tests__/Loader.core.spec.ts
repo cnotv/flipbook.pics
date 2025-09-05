@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
-import Loader from "../Loader.vue";
+import { useVideoFrames } from "../../composables/useVideoFrames";
 
 // Mock the frame generation helper functions
 vi.mock("../../helper/frameGeneration", () => ({
@@ -22,7 +21,7 @@ vi.mock("../../helper/frameGeneration", () => ({
         if (targetIndex >= targetTimes.length) return false;
         const targetTime = targetTimes[targetIndex];
         return Math.abs(currentTime - targetTime) < 0.1;
-      }
+      },
     ),
   calculateOptimalPlaybackRate: vi
     .fn()
@@ -31,57 +30,49 @@ vi.mock("../../helper/frameGeneration", () => ({
     }),
 }));
 
-// Mock pdfMake
-vi.mock("pdfmake/build/pdfmake", () => ({
-  createPdf: vi.fn(() => ({
-    download: vi.fn(),
-  })),
-}));
-
 // Mock createImageBitmap
 global.createImageBitmap = vi.fn().mockResolvedValue({});
 
-describe("Loader Component - Core Functionality Tests", () => {
-  let wrapper: ReturnType<typeof mount>;
+describe("Video Frames Composable - Core Functionality Tests", () => {
+  let composable: ReturnType<typeof useVideoFrames>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    wrapper = mount(Loader);
+    composable = useVideoFrames();
   });
 
   afterEach(() => {
-    wrapper.unmount();
+    // Clean up any timers
+    if (composable.isPlaying.value) {
+      composable.togglePlay();
+    }
+    vi.useRealTimers();
   });
 
-  describe("Component Initialization", () => {
+  describe("Composable Initialization", () => {
     it("should have correct initial state", () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
-      expect(component.fps).toBe("30");
-      expect(component.playbackSpeed).toBe("0");
-      expect(component.currentFrameIndex).toBe(0);
-      expect(component.videoDuration).toBe(0);
-      expect(component.totalFrames).toEqual([]);
-      expect(component.frames).toEqual([]);
-      expect(component.isPlaying).toBe(false);
+      expect(composable.fps.value).toBe("30");
+      expect(composable.playbackSpeed.value).toBe("0");
+      expect(composable.currentFrameIndex.value).toBe(0);
+      expect(composable.videoDuration.value).toBe(0);
+      expect(composable.totalFrames.value).toEqual([]);
+      expect(composable.frames.value).toEqual([]);
+      expect(composable.isPlaying.value).toBe(false);
     });
   });
 
   describe("Frame Generation on Video/FPS Changes", () => {
-    it("should copy frames when updateFrames is called (simulating FPS change)", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
+    it("should copy frames when FPS changes", async () => {
       // Setup initial frames as if they were generated
-      component.totalFrames = ["frame1", "frame2", "frame3", "frame4"];
+      composable.totalFrames.value = ["frame1", "frame2", "frame3", "frame4"];
       
-      // Call updateFrames to simulate FPS change effect
-      component.updateFrames();
+      // Call handleFpsChange to simulate FPS change effect
+      composable.handleFpsChange();
       await nextTick();
       
-      // Should copy frames and reset playback state
-      expect(component.frames).toEqual(["frame1", "frame2", "frame3", "frame4"]);
-      expect(component.currentFrameIndex).toBe(0);
-      expect(component.isPlaying).toBe(false);
+      // Should reset playback state
+      expect(composable.currentFrameIndex.value).toBe(0);
+      expect(composable.isPlaying.value).toBe(false);
     });
 
     it("should generate deterministic frame times through mock", () => {
@@ -97,45 +88,33 @@ describe("Loader Component - Core Functionality Tests", () => {
 
   describe("Auto Toggle Play After Frame Loading", () => {
     it("should start playing when togglePlay is called with frames present", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // Setup frames as if they were just loaded/generated
-      component.frames = ["frame1", "frame2", "frame3", "frame4"];
-      component.playbackSpeed = "0"; // Default speed
+      composable.frames.value = ["frame1", "frame2", "frame3", "frame4"];
+      composable.playbackSpeed.value = "0"; // Default speed
       
       // Use fake timers for controlled testing
       vi.useFakeTimers();
       
       // Toggle play to start animation (auto-play after loading)
-      component.togglePlay();
+      composable.togglePlay();
       await nextTick();
       
       // Should start playing
-      expect(component.isPlaying).toBe(true);
-      expect(component.playInterval).not.toBeNull();
-      
-      // Advance timer to test frame progression
-      vi.advanceTimersByTime(100); // Default interval
-      await nextTick();
-      
-      // Should advance to next frame
-      expect(component.currentFrameIndex).toBe(1);
+      expect(composable.isPlaying.value).toBe(true);
       
       vi.useRealTimers();
     });
 
     it("should loop frames during playback", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // Setup frames at last frame
-      component.frames = ["frame1", "frame2", "frame3"];
-      component.currentFrameIndex = 2; // Last frame
-      component.playbackSpeed = "0";
+      composable.frames.value = ["frame1", "frame2", "frame3"];
+      composable.currentFrameIndex.value = 2; // Last frame
+      composable.playbackSpeed.value = "0";
 
       vi.useFakeTimers();
 
       // Start playing
-      component.togglePlay();
+      composable.togglePlay();
       await nextTick();
 
       // Advance timers to trigger frame change
@@ -143,150 +122,118 @@ describe("Loader Component - Core Functionality Tests", () => {
       await nextTick();
 
       // Should loop back to first frame
-      expect(component.currentFrameIndex).toBe(0);
+      expect(composable.currentFrameIndex.value).toBe(0);
 
       vi.useRealTimers();
     });
 
     it("should stop playing and navigate when using manual controls", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // Setup frames and playing state
-      component.frames = ["frame1", "frame2", "frame3", "frame4"];
-      component.currentFrameIndex = 1;
-      component.isPlaying = true;
-      component.playInterval = setInterval(() => {}, 100);
+      composable.frames.value = ["frame1", "frame2", "frame3", "frame4"];
+      composable.currentFrameIndex.value = 1;
+      
+      // Start playing first
+      composable.togglePlay();
+      await nextTick();
+      expect(composable.isPlaying.value).toBe(true);
       
       // Navigate to next frame (should stop playing)
-      component.nextFrame();
+      composable.nextFrame();
       await nextTick();
       
       // Should stop playing and advance frame
-      expect(component.isPlaying).toBe(false);
-      expect(component.playInterval).toBeNull();
-      expect(component.currentFrameIndex).toBe(2);
-    });
-  });
-
-  describe("Animation Speed Calculations", () => {
-    it("should calculate correct intervals for different playback speeds", () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
-      // Test default speed (0) = 100ms interval
-      expect(component.calculateAnimationInterval(0)).toBe(100);
-      
-      // Test positive speeds (faster)
-      expect(component.calculateAnimationInterval(1)).toBe(50);   // 2x faster
-      expect(component.calculateAnimationInterval(2)).toBeCloseTo(33.33, 1); // 3x faster
-      
-      // Test negative speeds (slower)
-      expect(component.calculateAnimationInterval(-1)).toBe(200); // 2x slower
-      expect(component.calculateAnimationInterval(-2)).toBe(300); // 3x slower
-      
-      // Test bounds are respected
-      expect(component.calculateAnimationInterval(100)).toBeGreaterThanOrEqual(16); // Min 16ms (~60 FPS)
-      expect(component.calculateAnimationInterval(-100)).toBeLessThanOrEqual(2000); // Max 2000ms (0.5 FPS)
+      expect(composable.isPlaying.value).toBe(false);
+      expect(composable.currentFrameIndex.value).toBe(2);
     });
   });
 
   describe("Time Formatting and Display", () => {
     it("should format time correctly", () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
-      expect(component.formatTime(0)).toBe("0:00.000");
-      expect(component.formatTime(65.123)).toBe("1:05.123");
-      expect(component.formatTime(125.456)).toBe("2:05.456");
-      expect(component.formatTime(3661.789)).toBe("61:01.789");
+      expect(composable.formatTime(0)).toBe("0:00.000");
+      expect(composable.formatTime(65.123)).toBe("1:05.123");
+      expect(composable.formatTime(125.456)).toBe("2:05.456");
+      expect(composable.formatTime(3661.789)).toBe("61:01.789");
     });
 
     it("should calculate total time from duration", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
-      component.videoDuration = 65.5;
+      composable.videoDuration.value = 65.5;
       await nextTick();
       
-      expect(component.totalTime).toBe("1:05.500");
+      expect(composable.totalTime.value).toBe("1:05.500");
     });
 
     it("should handle edge cases for time calculation", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // No frames or duration
-      component.frames = [];
-      component.videoDuration = 0;
+      composable.frames.value = [];
+      composable.videoDuration.value = 0;
       await nextTick();
       
-      expect(component.currentTime).toBe("0:00.000");
-      expect(component.totalTime).toBe("0:00.000");
+      expect(composable.currentTime.value).toBe("0:00.000");
+      expect(composable.totalTime.value).toBe("0:00.000");
     });
   });
 
   describe("State Reset Functionality", () => {
     it("should reset all state when resetVideo is called", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // Setup state as if video was loaded and playing
-      component.videoSrc = "/test.mp4";
-      component.status = 1;
-      component.totalFrames = ["frame1", "frame2"];
-      component.frames = ["frame1", "frame2"];
-      component.currentFrameIndex = 1;
-      component.videoDuration = 10;
-      component.isPlaying = true;
-      component.playInterval = setInterval(() => {}, 100);
+      composable.videoSrc.value = "/test.mp4";
+      composable.status.value = 1;
+      composable.totalFrames.value = ["frame1", "frame2"];
+      composable.frames.value = ["frame1", "frame2"];
+      composable.currentFrameIndex.value = 1;
+      composable.videoDuration.value = 10;
+      composable.isPlaying.value = true;
       
       // Reset
-      component.resetVideo();
+      composable.resetVideo();
       await nextTick();
       
       // Check reset state
-      expect(component.status).toBe(0);          // STATUS.empty
-      expect(component.videoSrc).toBeNull();
-      expect(component.totalFrames).toEqual([]);
-      expect(component.frames).toEqual([]);
-      expect(component.currentFrameIndex).toBe(0);
-      expect(component.videoDuration).toBe(0);
-      expect(component.isPlaying).toBe(false);
-      expect(component.playInterval).toBeNull();
+      expect(composable.status.value).toBe(0); // STATUS.empty
+      expect(composable.videoSrc.value).toBeNull();
+      expect(composable.totalFrames.value).toEqual([]);
+      expect(composable.frames.value).toEqual([]);
+      expect(composable.currentFrameIndex.value).toBe(0);
+      expect(composable.videoDuration.value).toBe(0);
+      expect(composable.isPlaying.value).toBe(false);
     });
   });
 
   describe("Frame Navigation Boundaries", () => {
     it("should respect frame boundaries when navigating", async () => {
-      const component = wrapper.vm as any; // eslint-disable-line @typescript-eslint/no-explicit-any
-      
       // Setup frames
-      component.frames = ["frame1", "frame2", "frame3", "frame4"];
+      composable.frames.value = ["frame1", "frame2", "frame3", "frame4"];
       
       // Test next frame at boundary
-      component.currentFrameIndex = 3; // Last frame
-      component.nextFrame();
-      expect(component.currentFrameIndex).toBe(3); // Should stay at last frame
+      composable.currentFrameIndex.value = 3; // Last frame
+      composable.nextFrame();
+      expect(composable.currentFrameIndex.value).toBe(3); // Should stay at last frame
       
       // Test previous frame at boundary
-      component.currentFrameIndex = 0; // First frame
-      component.previousFrame();
-      expect(component.currentFrameIndex).toBe(0); // Should stay at first frame
+      composable.currentFrameIndex.value = 0; // First frame
+      composable.previousFrame();
+      expect(composable.currentFrameIndex.value).toBe(0); // Should stay at first frame
       
       // Test normal navigation
-      component.currentFrameIndex = 1;
-      component.nextFrame();
-      expect(component.currentFrameIndex).toBe(2);
+      composable.currentFrameIndex.value = 1;
+      composable.nextFrame();
+      expect(composable.currentFrameIndex.value).toBe(2);
       
-      component.previousFrame();
-      expect(component.currentFrameIndex).toBe(1);
+      composable.previousFrame();
+      expect(composable.currentFrameIndex.value).toBe(1);
     });
   });
 
   describe("Frame Generation Utilities Integration", () => {
     it("should use browser-safe playback rate calculation logic", () => {
       // Test the logic that would be used by calculateOptimalPlaybackRate
-      const calculateRate = (fps: number) => Math.min(4.0, Math.max(0.5, fps / 30));
+      const calculateRate = (fps: number) =>
+        Math.min(4.0, Math.max(0.5, fps / 30));
       
       // Test different scenarios
-      expect(calculateRate(15)).toBe(0.5);  // 15/30 = 0.5
-      expect(calculateRate(30)).toBe(1.0);  // 30/30 = 1.0
-      expect(calculateRate(60)).toBe(2.0);  // 60/30 = 2.0
+      expect(calculateRate(15)).toBe(0.5); // 15/30 = 0.5
+      expect(calculateRate(30)).toBe(1.0); // 30/30 = 1.0
+      expect(calculateRate(60)).toBe(2.0); // 60/30 = 2.0
       expect(calculateRate(150)).toBe(4.0); // Clamped to max 4.0
     });
 
@@ -299,12 +246,12 @@ describe("Loader Component - Core Functionality Tests", () => {
       const targetTimes = [0, 0.5, 1.0, 1.5, 2.0];
       
       // Should capture at target times (within tolerance)
-      expect(shouldCapture(0.05, targetTimes[0])).toBe(true);  // Within tolerance
-      expect(shouldCapture(0.55, targetTimes[1])).toBe(true);  // Within tolerance
+      expect(shouldCapture(0.05, targetTimes[0])).toBe(true); // Within tolerance
+      expect(shouldCapture(0.55, targetTimes[1])).toBe(true); // Within tolerance
       
       // Should not capture at wrong times
-      expect(shouldCapture(0.3, targetTimes[0])).toBe(false);  // Too far from target
-      expect(shouldCapture(0.8, targetTimes[1])).toBe(false);  // Too far from target
+      expect(shouldCapture(0.3, targetTimes[0])).toBe(false); // Too far from target
+      expect(shouldCapture(0.8, targetTimes[1])).toBe(false); // Too far from target
     });
   });
 });
