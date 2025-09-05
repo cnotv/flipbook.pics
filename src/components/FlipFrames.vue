@@ -51,14 +51,14 @@ defineProps<Props>();
     />
 
     <!-- Show stack effect for remaining frames -->
-    <img
+    <!-- <img
       class="frames__item"
       :class="{ 'frames__item--flipped': index < frames.length - 1 }"
       :src="frame"
       alt=""
       v-for="(frame, index) in frames"
       :key="`stack-${index}`"
-    />
+    /> -->
   </div>
 </template>
 
@@ -150,6 +150,7 @@ defineProps<Props>();
     transform-style: preserve-3d;
     transition-property: transform;
     max-width: 100%;
+    border-radius: var(--border-radius);
 
     &--flipped {
       transform: rotateY(-75deg);
