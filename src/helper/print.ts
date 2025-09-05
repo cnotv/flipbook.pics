@@ -1,3 +1,4 @@
+import { it } from "vitest";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
 interface PrintOptions {
@@ -35,13 +36,40 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
 
   // Create content array starting with cover if available
   const content = [];
+  const colorBorder = "#CCCCCC";
+  const borderLayout = {
+    hLineWidth: () => 1,
+    vLineWidth: () => 1,
+    hLineColor: () => colorBorder,
+    vLineColor: () => colorBorder,
+    hLineStyle: () => ({ dash: { length: 3, space: 2 } }),
+    vLineStyle: () => ({ dash: { length: 3, space: 2 } }),
+    paddingLeft: () => 2,
+    paddingRight: () => 2,
+    paddingTop: () => 2,
+    paddingBottom: () => 2,
+  };
+  const imageProperties = {
+    width: pdfWidth,
+    height: pdfHeight,
+    alignment: "center" as const,
+    border: [true, true, true, true],
+  };
 
   // Add cover as first page if it exists
   if (cover) {
     content.push({
-      image: cover,
-      width: pdfWidth,
-      height: pdfHeight,
+      table: {
+        body: [
+          [
+            {
+              image: cover,
+              ...imageProperties,
+            },
+          ],
+        ],
+      },
+      layout: borderLayout,
       alignment: "center" as const,
     });
   }
@@ -49,9 +77,20 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   // Add all video frames
   frames.forEach((image) => {
     content.push({
-      image,
-      width: pdfWidth,
-      height: pdfHeight,
+      table: {
+        body: [
+          [
+            {
+              image,
+              width: pdfWidth,
+              height: pdfHeight,
+              alignment: "center" as const,
+              border: [true, true, true, true],
+            },
+          ],
+        ],
+      },
+      layout: borderLayout,
       alignment: "center" as const,
     });
   });
