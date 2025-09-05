@@ -12,6 +12,16 @@ defineProps<Props>();
 
 <template>
   <div class="frames">
+    <!-- Paper stack effect -->
+    <div class="frames__stack">
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="frames__stack-layer"
+        :style="{ '--stack-index': i }"
+      ></div>
+    </div>
+
     <!-- Loading overlay -->
     <div v-if="loadingStatus === 1" class="frames__loading-overlay">
       <div class="frames__loading-content">
@@ -44,12 +54,6 @@ defineProps<Props>();
     <img
       class="frames__item"
       :class="{ 'frames__item--flipped': index < frames.length - 1 }"
-      :style="{
-        zIndex: -index,
-        display: index < frames.length - 10 ? 'none' : 'block',
-        opacity:
-          index === currentFrameIndex ? 0 : index < frames.length - 1 ? 0.5 : 1,
-      }"
       :src="frame"
       alt=""
       v-for="(frame, index) in frames"
@@ -67,8 +71,31 @@ defineProps<Props>();
   perspective: 1300px;
   backface-visibility: hidden;
   max-width: 100%;
-  overflow: hidden; /* Only the frames container needs overflow hidden */
+  overflow: visible; /* Allow stack effect to be visible */
   border-radius: var(--border-radius);
+
+  /* Paper stack effect */
+  &__stack {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  &__stack-layer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: var(--color-background-soft, #f8f9fa);
+    border: 1px solid var(--color-border, #e0e0e0);
+    border-radius: var(--border-radius);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transform: translateX(calc(var(--stack-index) * 2px))
+      translateY(calc(var(--stack-index) * 2px)) rotate(calc(var(--stack-index) * 0.2deg));
+    z-index: calc(-1 * var(--stack-index));
+    background: hsl(0, 0%, calc(98% - var(--stack-index) * 1%));
+  }
 
   &__loading {
     &-overlay {
@@ -128,13 +155,14 @@ defineProps<Props>();
       transform: rotateY(-75deg);
       transform-origin: left center;
       opacity: 0.5;
-      transition:
-        transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
+      z-index: 3;
+      transition: transform 0.1s cubic-bezier(0.07, 0.94, 0.31, 0.9),
         opacity 0.025s cubic-bezier(0, 1.16, 0.16, 0.98);
+      display: none;
     }
 
     &--current {
-      z-index: 2 !important;
+      z-index: 2;
     }
   }
 }
