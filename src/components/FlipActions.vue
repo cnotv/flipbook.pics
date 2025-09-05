@@ -142,7 +142,7 @@ const triggerCoverUpload = () => {
   display: flex;
   flex-direction: column;
   gap: 1em;
-  max-width: 800px;
+  max-width: 560px;
   margin: auto;
 
   .flip-button {
