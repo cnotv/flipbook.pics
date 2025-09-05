@@ -237,7 +237,7 @@ const printPreview = () => {
   </template>
 
   <!-- Load Sample Video - always visible -->
-  <div class="sample-video">
+  <div class="sample-video" v-if="status !== STATUS.loaded">
     <FlipButton @click="loadSampleVideo()"> Load Sample Video </FlipButton>
     <p class="sample-video__reference">
       <a
@@ -332,10 +332,6 @@ const printPreview = () => {
     &-message {
       margin-bottom: 1em;
     }
-  }
-
-  @media (min-width: 1024px) {
-    margin-bottom: 8em;
   }
 }
 

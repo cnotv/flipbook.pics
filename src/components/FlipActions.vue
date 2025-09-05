@@ -44,74 +44,68 @@ const triggerCoverUpload = () => {
 
 <template>
   <div class="flip-actions">
-    <FlipButton @click="$emit('reset')">X</FlipButton>
-    <FlipButton :disabled="frames.length === 0" @click="$emit('togglePlay')">
-      {{ isPlaying ? "⏸" : "▶" }}
-    </FlipButton>
-    <FlipButton :disabled="frames.length === 0" @click="$emit('print')">
-      Print
-    </FlipButton>
-
-    <!-- Frame position slider -->
-    <div class="flip-actions__slider" v-if="frames.length > 1">
-      <input
-        type="range"
-        :value="currentFrameIndex"
-        :min="0"
-        :max="frames.length - 1"
-        :step="1"
-        @input="
-          $emit(
-            'framePositionChange',
-            Number(($event.target as HTMLInputElement).value),
-          )
-        "
-        class="flip-actions__range"
-      />
-    </div>
-
-    <!-- Frame navigation -->
-    <div class="flip-actions__navigation" v-if="frames.length > 0">
-      <FlipButton
-        :disabled="currentFrameIndex === 0"
-        @click="$emit('previousFrame')"
-      >
-        ←
+    <div class="flip-actions__media">
+      <FlipButton @click="$emit('reset')">X</FlipButton>
+      <FlipButton :disabled="frames.length === 0" @click="$emit('togglePlay')">
+        {{ isPlaying ? "⏸" : "▶" }}
       </FlipButton>
-      <div class="flip-actions__counter">
-        <div class="flip-actions__count">
-          {{ currentFrameIndex + 1 }} / {{ frames.length }}
-        </div>
-        <div class="flip-actions__time">
-          {{ currentTime }} / {{ totalTime }}
-        </div>
+
+      <!-- Frame position slider -->
+      <div class="flip-actions__slider" v-if="frames.length > 1">
+        <input
+          type="range"
+          :value="currentFrameIndex"
+          :min="0"
+          :max="frames.length - 1"
+          :step="1"
+          @input="
+            $emit(
+              'framePositionChange',
+              Number(($event.target as HTMLInputElement).value),
+            )
+          "
+          class="flip-actions__range"
+        />
       </div>
-      <FlipButton
-        :disabled="currentFrameIndex >= frames.length - 1"
-        @click="$emit('nextFrame')"
-      >
-        →
-      </FlipButton>
-    </div>
+      <!-- Cover upload/remove -->
+      <template v-if="!cover">
+        <FlipButton @click="triggerCoverUpload" class="flip-actions__cover-upload">
+          + Cover
+        </FlipButton>
+        <input
+          type="file"
+          id="cover"
+          accept="image/*"
+          @change="$emit('coverUpload', $event)"
+          style="display: none"
+          ref="coverInput"
+        />
+      </template>
+      <FlipButton v-else @click="$emit('removeCover')"> - Cover </FlipButton>
 
-    <!-- Cover upload/remove -->
-    <template v-if="!cover">
-      <FlipButton
-        @click="triggerCoverUpload"
-        class="flip-actions__cover-upload"
-      >
-        + Cover
+      <FlipButton :disabled="frames.length === 0" @click="$emit('print')">
+        Print
       </FlipButton>
-      <input
-        type="file"
-        id="cover"
-        accept="image/*"
-        @change="$emit('coverUpload', $event)"
-        style="display: none"
-        ref="coverInput"
-      />
-    </template>
-    <FlipButton v-else @click="$emit('removeCover')"> - Cover </FlipButton>
+
+      <!-- Frame navigation -->
+      <div class="flip-actions__navigation" v-if="frames.length > 0">
+        <FlipButton :disabled="currentFrameIndex === 0" @click="$emit('previousFrame')">
+          ←
+        </FlipButton>
+        <div class="flip-actions__counter">
+          <div class="flip-actions__count">
+            {{ currentFrameIndex + 1 }} / {{ frames.length }}
+          </div>
+          <div class="flip-actions__time">{{ currentTime }} / {{ totalTime }}</div>
+        </div>
+        <FlipButton
+          :disabled="currentFrameIndex >= frames.length - 1"
+          @click="$emit('nextFrame')"
+        >
+          →
+        </FlipButton>
+      </div>
+    </div>
 
     <!-- FPS and Playback Speed Controls -->
     <div class="flip-actions__controls">
@@ -124,7 +118,9 @@ const triggerCoverUpload = () => {
         :max="120"
         @change="$emit('fpsChange')"
         :show-info="videoDuration > 0"
-        :info-text="`Estimated frame count: ${(estimatedFrameCount - 1).toLocaleString()}`"
+        :info-text="`Estimated frame count: ${(
+          estimatedFrameCount - 1
+        ).toLocaleString()}`"
       >
       </FlipSlider>
 
@@ -146,11 +142,20 @@ const triggerCoverUpload = () => {
   display: flex;
   flex-direction: column;
   gap: 1em;
+  max-width: 800px;
+  margin: auto;
 
   .flip-button {
     flex: 1;
     font-size: 0.9em;
     padding: 0.75em 1em;
+  }
+
+  &__media {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    justify-content: center;
   }
 
   &__slider {
@@ -246,16 +251,7 @@ const triggerCoverUpload = () => {
     display: flex;
     flex-direction: column;
     gap: 1em;
-    margin-top: 1em;
     padding-top: 1em;
-    border-top: 1px solid var(--color-border, #e0e0e0);
-  }
-
-  @media (min-width: 1024px) {
-    position: absolute;
-    top: 0;
-    right: calc(var(--actions-width) * -1);
-    width: var(--actions-width);
   }
 
   @media (max-width: 1024px) {
