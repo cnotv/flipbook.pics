@@ -236,6 +236,7 @@ const triggerCoverUpload = () => {
     display: flex;
     flex-direction: column;
     gap: 0.25em;
+    min-width: 100px;
   }
 
   &__count {
