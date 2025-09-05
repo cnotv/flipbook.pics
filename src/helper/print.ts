@@ -60,11 +60,30 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   if (cover) {
     content.push({
       table: {
+        widths: [20, pdfWidth], // 20px for rectangle, rest for image
         body: [
           [
             {
+              // Left rectangle
+              canvas: [
+                {
+                  type: "rect",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: pdfHeight,
+                  color: "#FFFFFF", // White rectangle
+                },
+              ],
+              width: 20,
+              height: pdfHeight,
+              border: [true, true, false, true], // left, top, right, bottom
+            },
+            {
+              // Image
               image: cover,
               ...imageProperties,
+              border: [false, true, true, true], // left, top, right, bottom
             },
           ],
         ],
@@ -78,14 +97,32 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   frames.forEach((image) => {
     content.push({
       table: {
+        widths: [20, pdfWidth], // 20px for rectangle, rest for image
         body: [
           [
             {
+              // Left rectangle
+              canvas: [
+                {
+                  type: "rect",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: pdfHeight,
+                  color: "#FFFFFF", // White rectangle
+                },
+              ],
+              width: 20,
+              height: pdfHeight,
+              border: [true, true, false, true], // left, top, right, bottom
+            },
+            {
+              // Image
               image,
               width: pdfWidth,
               height: pdfHeight,
               alignment: "center" as const,
-              border: [true, true, true, true],
+              border: [false, true, true, true], // left, top, right, bottom
             },
           ],
         ],
