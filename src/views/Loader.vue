@@ -6,7 +6,6 @@
  */
 import { ref, computed } from "vue";
 import FlipButton from "../components/FlipButton.vue";
-import FlipSlider from "../components/FlipSlider.vue";
 import FlipFile from "../components/FlipFile.vue";
 import FlipFrames from "../components/FlipFrames.vue";
 import FlipActions from "../components/FlipActions.vue";
@@ -219,6 +218,10 @@ const printPreview = () => {
       :currentTime="currentTime"
       :totalTime="totalTime"
       :cover="cover"
+      :fps="fps"
+      :playbackSpeed="playbackSpeed"
+      :videoDuration="videoDuration"
+      :estimatedFrameCount="estimatedFrameCount"
       @reset="resetVideo()"
       @togglePlay="togglePlay()"
       @print="printPreview()"
@@ -227,6 +230,9 @@ const printPreview = () => {
       @framePositionChange="setFramePosition"
       @coverUpload="handleCoverUpload"
       @removeCover="cover = null"
+      @fpsChange="handleFpsChange"
+      @update:fps="fps = $event"
+      @update:playbackSpeed="playbackSpeed = $event"
     />
   </template>
 
@@ -250,39 +256,9 @@ const printPreview = () => {
     v-if="status === STATUS.loaded"
     @size-change="handleFlipbookSizeChange"
   />
-
-  <section v-if="status === STATUS.loaded" class="loader-sliders">
-    <FlipSlider
-      id="fps"
-      v-model="fps"
-      label="FPS:"
-      :min="1"
-      :max="120"
-      @change="handleFpsChange"
-      :show-info="videoDuration > 0"
-      :info-text="`Estimated frame count: ${(estimatedFrameCount - 1).toLocaleString()}`"
-    >
-    </FlipSlider>
-
-    <FlipSlider
-      id="playbackSpeed"
-      v-model="playbackSpeed"
-      label="Playback speed:"
-      :min="-10"
-      :max="10"
-      :step="0.1"
-    ></FlipSlider>
-  </section>
 </template>
 
 <style lang="scss">
-/* CSS variables are now set dynamically in the template */
-.loader-sliders {
-  width: 100%;
-  max-width: 560px;
-  margin: 2rem auto;
-}
-
 .sample-video {
   text-align: center;
   margin: 2rem auto;

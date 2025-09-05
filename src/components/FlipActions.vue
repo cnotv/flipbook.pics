@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ref } from "vue";
 import FlipButton from "./FlipButton.vue";
+import FlipSlider from "./FlipSlider.vue";
 
 interface Props {
   frames: string[];
@@ -9,6 +10,10 @@ interface Props {
   currentTime: string;
   totalTime: string;
   cover?: string | null;
+  fps: string;
+  playbackSpeed: string;
+  videoDuration: number;
+  estimatedFrameCount: number;
 }
 
 interface Emits {
@@ -20,6 +25,9 @@ interface Emits {
   (e: "framePositionChange", index: number): void;
   (e: "coverUpload", event: Event): void;
   (e: "removeCover"): void;
+  (e: "fpsChange"): void;
+  (e: "update:fps", value: string): void;
+  (e: "update:playbackSpeed", value: string): void;
 }
 
 defineProps<Props>();
@@ -74,7 +82,9 @@ const triggerCoverUpload = () => {
         <div class="flip-actions__count">
           {{ currentFrameIndex + 1 }} / {{ frames.length }}
         </div>
-        <div class="flip-actions__time">{{ currentTime }} / {{ totalTime }}</div>
+        <div class="flip-actions__time">
+          {{ currentTime }} / {{ totalTime }}
+        </div>
       </div>
       <FlipButton
         :disabled="currentFrameIndex >= frames.length - 1"
@@ -86,7 +96,10 @@ const triggerCoverUpload = () => {
 
     <!-- Cover upload/remove -->
     <template v-if="!cover">
-      <FlipButton @click="triggerCoverUpload" class="flip-actions__cover-upload">
+      <FlipButton
+        @click="triggerCoverUpload"
+        class="flip-actions__cover-upload"
+      >
         + Cover
       </FlipButton>
       <input
@@ -99,6 +112,32 @@ const triggerCoverUpload = () => {
       />
     </template>
     <FlipButton v-else @click="$emit('removeCover')"> - Cover </FlipButton>
+
+    <!-- FPS and Playback Speed Controls -->
+    <div class="flip-actions__controls">
+      <FlipSlider
+        id="fps"
+        :model-value="fps"
+        @update:model-value="$emit('update:fps', String($event))"
+        label="FPS:"
+        :min="1"
+        :max="120"
+        @change="$emit('fpsChange')"
+        :show-info="videoDuration > 0"
+        :info-text="`Estimated frame count: ${(estimatedFrameCount - 1).toLocaleString()}`"
+      >
+      </FlipSlider>
+
+      <FlipSlider
+        id="playbackSpeed"
+        :model-value="playbackSpeed"
+        @update:model-value="$emit('update:playbackSpeed', String($event))"
+        label="Playback speed:"
+        :min="-10"
+        :max="10"
+        :step="0.1"
+      ></FlipSlider>
+    </div>
   </div>
 </template>
 
@@ -201,6 +240,15 @@ const triggerCoverUpload = () => {
   &__time {
     font-size: 0.8em;
     opacity: 0.9;
+  }
+
+  &__controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    margin-top: 1em;
+    padding-top: 1em;
+    border-top: 1px solid var(--color-border, #e0e0e0);
   }
 
   @media (min-width: 1024px) {
