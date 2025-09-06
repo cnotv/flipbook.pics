@@ -298,9 +298,6 @@ const printPreview = () => {
 .loader-frame {
   cursor: pointer;
   position: relative;
-  min-width: 200px;
-  min-height: 150px;
-  // border: var(--border);
   box-sizing: content-box;
   margin-bottom: 2rem;
   margin-top: 1em;
