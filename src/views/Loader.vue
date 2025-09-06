@@ -207,6 +207,16 @@ const printPreview = () => {
       </p>
       <FlipButton @click="status = STATUS.empty">Try Again</FlipButton>
     </div>
+
+    <!-- Paper stack effect -->
+    <div class="loader-frame__stack">
+      <div
+        v-for="i in 6"
+        :key="i"
+        class="loader-frame__stack-layer"
+        :style="{ '--stack-index': i }"
+      ></div>
+    </div>
   </section>
 
   <!-- Actions under the video -->
@@ -332,6 +342,30 @@ const printPreview = () => {
     &-message {
       margin-bottom: 1em;
     }
+  }
+
+  /* Paper stack effect */
+  &__stack {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: -1;
+    top: 0;
+  }
+
+  &__stack-layer {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: var(--color-background-soft, #f8f9fa);
+    border: 1px solid var(--color-border, #e0e0e0);
+    border-radius: var(--border-radius);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    transform: translateX(calc(var(--stack-index) * 2px))
+      translateY(calc(var(--stack-index) * 2px)) rotate(calc(var(--stack-index) * 0.2deg));
+    z-index: calc(-1 * var(--stack-index));
+    background: hsl(0, 0%, calc(98% - var(--stack-index) * 1%));
   }
 }
 
