@@ -1,4 +1,3 @@
-import { it } from "vitest";
 import * as pdfMake from "pdfmake/build/pdfmake";
 
 interface PrintOptions {
@@ -23,20 +22,15 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   } = options;
 
   // Calculate dimensions maintaining aspect ratio
-  let pdfWidth, pdfHeight;
-  if (ratio > width / height) {
-    // Video is wider, constrain by width
-    pdfWidth = width;
-    pdfHeight = width / ratio;
-  } else {
-    // Video is taller, constrain by height
-    pdfHeight = height;
-    pdfWidth = height * ratio;
-  }
+  const isLandscape = ratio > width / height;
+  const pdfWidth = isLandscape ? width : height * ratio;
+  const pdfHeight = isLandscape ? height : width / ratio;
 
   // Create content array starting with cover if available
   const content = [];
   const colorBorder = "#CCCCCC";
+  const bindingWidth = 80;
+  const pageMargins = [5, 5, 5, 5] as [number, number, number, number];
   const borderLayout = {
     hLineWidth: () => 1,
     vLineWidth: () => 1,
@@ -55,30 +49,30 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
     alignment: "center" as const,
     border: [true, true, true, true],
   };
+  const binding = {
+    canvas: [
+      {
+        type: "rect",
+        x: 0,
+        y: 0,
+        w: bindingWidth,
+        h: pdfHeight,
+        color: "#FFFFFF",
+      },
+    ],
+    width: bindingWidth,
+    height: pdfHeight,
+    border: [true, true, false, true], // left, top, right, bottom
+  };
 
   // Add cover as first page if it exists
   if (cover) {
     content.push({
       table: {
-        widths: [20, pdfWidth], // 20px for rectangle, rest for image
+        widths: [bindingWidth, pdfWidth], // 20px for rectangle, rest for image
         body: [
           [
-            {
-              // Left rectangle
-              canvas: [
-                {
-                  type: "rect",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: pdfHeight,
-                  color: "#FFFFFF", // White rectangle
-                },
-              ],
-              width: 20,
-              height: pdfHeight,
-              border: [true, true, false, true], // left, top, right, bottom
-            },
+            binding,
             {
               // Image
               image: cover,
@@ -97,25 +91,10 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   frames.forEach((image) => {
     content.push({
       table: {
-        widths: [20, pdfWidth], // 20px for rectangle, rest for image
+        widths: [bindingWidth, pdfWidth], // 20px for rectangle, rest for image
         body: [
           [
-            {
-              // Left rectangle
-              canvas: [
-                {
-                  type: "rect",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: pdfHeight,
-                  color: "#FFFFFF", // White rectangle
-                },
-              ],
-              width: 20,
-              height: pdfHeight,
-              border: [true, true, false, true], // left, top, right, bottom
-            },
+            binding,
             {
               // Image
               image,
@@ -133,7 +112,7 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   });
 
   const document = {
-    pageMargins: [5, 5, 5, 5] as [number, number, number, number],
+    pageMargins,
     content,
   };
   pdfMake.createPdf(document).download();
