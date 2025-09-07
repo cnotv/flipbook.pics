@@ -81,6 +81,7 @@
   @media (max-width: 1024px) {
     &__header {
       width: 100%;
+      top: 0;
     }
 
     &__github-link {
