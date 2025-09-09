@@ -4,45 +4,6 @@ import {
   generateFrameParametersHash 
 } from "../../helper/frameGeneration";
 
-// Mock the video element and its methods
-const createMockVideo = (duration: number = 10.0, width: number = 1920, height: number = 1080) => ({
-  duration,
-  videoWidth: width,
-  videoHeight: height,
-  currentTime: 0,
-  playbackRate: 1,
-  ended: false,
-  play: vi.fn().mockResolvedValue(undefined),
-  load: vi.fn(),
-  addEventListener: vi.fn((event: string, callback: Function) => {
-    if (event === "loadedmetadata") {
-      // Simulate metadata loading immediately
-      setTimeout(callback, 0);
-    }
-  }),
-  removeEventListener: vi.fn(),
-  requestVideoFrameCallback: vi.fn((callback: Function) => {
-    // Simulate frame callback
-    setTimeout(() => {
-      callback(performance.now(), {
-        width,
-        height,
-      });
-    }, 16); // ~60fps simulation
-  }),
-});
-
-// Mock canvas methods
-const createMockCanvas = () => ({
-  width: 0,
-  height: 0,
-  getContext: vi.fn(() => ({
-    clearRect: vi.fn(),
-    drawImage: vi.fn(),
-  })),
-  toDataURL: vi.fn(() => "data:image/jpeg;base64,mockImageData"),
-});
-
 // Mock createImageBitmap
 global.createImageBitmap = vi.fn().mockResolvedValue({});
 
@@ -209,7 +170,7 @@ describe("Loader Component - Deterministic Frame Generation", () => {
 
       // Verify all runs produced identical results
       const firstResult = results[0];
-      results.forEach((result, index) => {
+      results.forEach((result, _) => {
         expect(result.frames).toEqual(firstResult.frames);
         expect(result.hash).toBe(firstResult.hash);
         expect(result.frames.length).toBe(firstResult.frames.length);
