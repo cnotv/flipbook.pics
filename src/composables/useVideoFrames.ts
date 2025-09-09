@@ -45,6 +45,24 @@ export function useVideoFrames() {
   const flipbookHeight = ref(4); // inches
 
   /**
+   * Initialize video element with mobile-friendly attributes
+   */
+  const initializeVideoElement = (videoEl: HTMLVideoElement) => {
+    // Prevent fullscreen on mobile devices
+    videoEl.setAttribute("playsinline", "true");
+    videoEl.setAttribute("webkit-playsinline", "true");
+    videoEl.muted = true; // Mute to allow autoplay on mobile without user interaction
+    videoEl.controls = false; // Hide controls to prevent user interaction
+    videoEl.style.display = "none"; // Hide video element
+    
+    // Prevent context menu on video
+    videoEl.addEventListener("contextmenu", (e) => e.preventDefault());
+    
+    // Prevent video from going fullscreen when double-tapped on mobile
+    videoEl.addEventListener("dblclick", (e) => e.preventDefault());
+  };
+
+  /**
    * Reset all video and frame state
    */
   const resetVideo = () => {
@@ -322,6 +340,9 @@ export function useVideoFrames() {
 
       const videoEl = video.value;
       if (videoEl) {
+        // Initialize video element
+        initializeVideoElement(videoEl);
+        
         // Ensure video loads the new source
         videoEl.load();
 
