@@ -2,6 +2,12 @@
 import { ref } from "vue";
 import FlipButton from "./FlipButton.vue";
 import FlipSlider from "./FlipSlider.vue";
+import IconClose from "./icons/IconClose.vue";
+import IconPlay from "./icons/IconPlay.vue";
+import IconPause from "./icons/IconPause.vue";
+import IconChevronLeft from "./icons/IconChevronLeft.vue";
+import IconChevronRight from "./icons/IconChevronRight.vue";
+import IconPrint from "./icons/IconPrint.vue";
 
 interface Props {
   frames: string[];
@@ -45,9 +51,12 @@ const triggerCoverUpload = () => {
 <template>
   <div class="flip-actions">
     <div class="flip-actions__media">
-      <FlipButton @click="$emit('reset')">X</FlipButton>
+      <FlipButton @click="$emit('reset')">
+        <IconClose />
+      </FlipButton>
       <FlipButton :disabled="frames.length === 0" @click="$emit('togglePlay')">
-        {{ isPlaying ? "⏸" : "▶" }}
+        <IconPause v-if="isPlaying" />
+        <IconPlay v-else />
       </FlipButton>
 
       <!-- Frame position slider -->
@@ -70,7 +79,7 @@ const triggerCoverUpload = () => {
       <!-- Cover upload/remove -->
       <template v-if="!cover">
         <FlipButton @click="triggerCoverUpload" class="flip-actions__cover-upload">
-          + Cover
+          Cover
         </FlipButton>
         <input
           type="file"
@@ -81,16 +90,16 @@ const triggerCoverUpload = () => {
           ref="coverInput"
         />
       </template>
-      <FlipButton v-else @click="$emit('removeCover')"> - Cover </FlipButton>
+      <FlipButton v-else @click="$emit('removeCover')"> Cover </FlipButton>
 
       <FlipButton :disabled="frames.length === 0" @click="$emit('print')">
-        Print
+        <IconPrint />
       </FlipButton>
 
       <!-- Frame navigation -->
       <div class="flip-actions__navigation" v-if="frames.length > 0">
         <FlipButton :disabled="currentFrameIndex === 0" @click="$emit('previousFrame')">
-          ←
+          <IconChevronLeft />
         </FlipButton>
         <div class="flip-actions__counter">
           <div class="flip-actions__count">
@@ -102,7 +111,7 @@ const triggerCoverUpload = () => {
           :disabled="currentFrameIndex >= frames.length - 1"
           @click="$emit('nextFrame')"
         >
-          →
+          <IconChevronRight />
         </FlipButton>
       </div>
     </div>
@@ -149,6 +158,14 @@ const triggerCoverUpload = () => {
     flex: 1;
     font-size: 0.9em;
     padding: 0.75em 1em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+
+    svg {
+      flex-shrink: 0;
+    }
   }
 
   &__media {

@@ -368,8 +368,7 @@ const printPreview = () => {
     border-radius: var(--border-radius);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     transform: translateX(calc(var(--stack-index) * 2px))
-      translateY(calc(var(--stack-index) * 2px))
-      rotate(calc(var(--stack-index) * 0.2deg));
+      translateY(calc(var(--stack-index) * 2px)) rotate(calc(var(--stack-index) * 0.2deg));
     z-index: calc(-1 * var(--stack-index));
     background: hsl(0, 0%, calc(98% - var(--stack-index) * 1%));
   }
