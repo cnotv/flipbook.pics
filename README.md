@@ -4,7 +4,7 @@ Pick your video and cover to generate your own offline flipbook animation!
 
 [Try it out!](https://flipbook-pics.netlify.app/)
 
-![Preview image](src/assets/preview.png)
+![Preview image](src/assets/preview.gif)
 
 ## Development notes
 
