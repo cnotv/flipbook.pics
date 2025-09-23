@@ -43,6 +43,7 @@ export function useVideoFrames() {
   // Flipbook size state (default to landscape classic size)
   const flipbookWidth = ref(6); // inches - landscape orientation
   const flipbookHeight = ref(4); // inches
+  const orientation = ref<"landscape" | "portrait">("landscape"); // New orientation state
 
   /**
    * Initialize video element with mobile-friendly attributes
@@ -96,6 +97,25 @@ export function useVideoFrames() {
         await generateFrames();
       } catch (error) {
         console.error("Failed to regenerate frames after size change:", error);
+      }
+    }
+  };
+
+  /**
+   * Toggle flipbook orientation between landscape and portrait
+   */
+  const toggleOrientation = async () => {
+    orientation.value =
+      orientation.value === "landscape" ? "portrait" : "landscape";
+    // Regenerate frames if we have a video loaded
+    if (videoSrc.value && video.value) {
+      try {
+        await generateFrames();
+      } catch (error) {
+        console.error(
+          "Failed to regenerate frames after orientation change:",
+          error,
+        );
       }
     }
   };
@@ -622,6 +642,7 @@ export function useVideoFrames() {
     isPlaying,
     flipbookWidth,
     flipbookHeight,
+    orientation,
 
     // Computed
     currentTime,
@@ -639,6 +660,7 @@ export function useVideoFrames() {
     nextFrame,
     setFramePosition,
     setFlipbookSize,
+    toggleOrientation,
 
     // Constants
     VIDEO_STATUS,

@@ -40,6 +40,7 @@ const {
   loadingText,
   flipbookWidth,
   flipbookHeight,
+  orientation,
   handleVideoUpload: composableHandleVideoUpload,
   loadSampleVideo: composableLoadSampleVideo,
   resetVideo: composableResetVideo,
@@ -49,6 +50,7 @@ const {
   setFramePosition,
   handleFpsChange,
   setFlipbookSize,
+  toggleOrientation,
 } = useVideoFrames();
 
 /**
@@ -66,10 +68,13 @@ const estimatedFrameCount = computed(() => {
 });
 
 /**
- * Calculate CSS frame dimensions based on flipbook size
+ * Calculate CSS frame dimensions based on flipbook size and orientation
  */
 const frameDimensions = computed(() => {
   const pixelsPerInch = 60; // Scale factor for display
+  
+  // For portrait orientation, we still display using landscape dimensions for layout
+  // but the actual frame content will be rotated in the canvas
   const width = flipbookWidth.value * pixelsPerInch;
   const height = flipbookHeight.value * pixelsPerInch;
   const maxWidth = 560; // Maximum display width
@@ -81,6 +86,7 @@ const frameDimensions = computed(() => {
     width: Math.round(width * scale),
     height: Math.round(height * scale),
     aspectRatio: flipbookWidth.value / flipbookHeight.value,
+    orientation: orientation.value,
   };
 });
 
@@ -150,12 +156,13 @@ const handleFlipbookSizeChange = (size: { width: number; height: number }) => {
 /**
  * Generate and download PDF preview of the flipbook
  */
-const printPreview = () => {
-  generateFlipbookPDF({
+const printPreview = async () => {
+  await generateFlipbookPDF({
     frames: frames.value,
     cover: cover.value,
     size: frameDimensions.value,
     ratio: videoAspectRatio.value,
+    orientation: orientation.value,
   });
 };
 </script>
@@ -240,6 +247,7 @@ const printPreview = () => {
       :playbackSpeed="playbackSpeed"
       :videoDuration="videoDuration"
       :estimatedFrameCount="estimatedFrameCount"
+      :orientation="orientation"
       @reset="resetVideo()"
       @togglePlay="togglePlay()"
       @print="printPreview()"
@@ -251,6 +259,7 @@ const printPreview = () => {
       @fpsChange="handleFpsChange"
       @update:fps="fps = $event"
       @update:playbackSpeed="playbackSpeed = $event"
+      @toggleOrientation="toggleOrientation"
     />
   </template>
 
@@ -272,7 +281,9 @@ const printPreview = () => {
   <!-- Flipbook Size Selector -->
   <FlipSizeSelector
     v-if="status === STATUS.loaded"
+    :orientation="orientation"
     @size-change="handleFlipbookSizeChange"
+    @toggle-orientation="toggleOrientation"
   />
 </template>
 
@@ -368,7 +379,8 @@ const printPreview = () => {
     border-radius: var(--border-radius);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
     transform: translateX(calc(var(--stack-index) * 2px))
-      translateY(calc(var(--stack-index) * 2px)) rotate(calc(var(--stack-index) * 0.2deg));
+      translateY(calc(var(--stack-index) * 2px))
+      rotate(calc(var(--stack-index) * 0.2deg));
     z-index: calc(-1 * var(--stack-index));
     background: hsl(0, 0%, calc(98% - var(--stack-index) * 1%));
   }

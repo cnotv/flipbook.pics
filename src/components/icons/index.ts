@@ -8,3 +8,4 @@ export { default as IconChevronRight } from "./IconChevronRight.vue";
 export { default as IconPrint } from "./IconPrint.vue";
 export { default as IconPlus } from "./IconPlus.vue";
 export { default as IconMinus } from "./IconMinus.vue";
+export { default as IconRotate } from "./IconRotate.vue";

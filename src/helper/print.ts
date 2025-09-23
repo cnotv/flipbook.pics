@@ -8,23 +8,80 @@ interface PrintOptions {
     height: number;
   };
   ratio: number;
+  orientation?: "landscape" | "portrait";
 }
+
+/**
+ * Rotate an image 90 degrees clockwise for portrait orientation printing
+ */
+const rotateImageForPrint = (
+  imageDataUrl: string,
+  orientation: "landscape" | "portrait" = "landscape",
+): Promise<string> => {
+  return new Promise((resolve) => {
+    if (orientation === "landscape") {
+      // No rotation needed for landscape
+      resolve(imageDataUrl);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        resolve(imageDataUrl);
+        return;
+      }
+
+      // For portrait printing, we rotate the image 90° clockwise
+      // so it prints correctly on landscape paper
+      canvas.width = img.height;
+      canvas.height = img.width;
+
+      // Move to center and rotate
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(Math.PI / 2); // 90° clockwise
+      ctx.translate(-img.width / 2, -img.height / 2);
+
+      // Draw the rotated image
+      ctx.drawImage(img, 0, 0);
+
+      // Return the rotated image as data URL
+      resolve(canvas.toDataURL("image/jpeg", 0.9));
+    };
+
+    img.src = imageDataUrl;
+  });
+};
 
 /**
  * Generate and download PDF preview of the flipbook
  */
-export const generateFlipbookPDF = (options: PrintOptions): void => {
+export const generateFlipbookPDF = async (
+  options: PrintOptions,
+): Promise<void> => {
   const {
     frames,
     cover,
     size: { height, width },
-    ratio,
+    orientation = "landscape",
   } = options;
 
-  // Calculate dimensions maintaining aspect ratio
-  const isLandscape = ratio > width / height;
-  const pdfWidth = isLandscape ? width : height * ratio;
-  const pdfHeight = isLandscape ? height : width / ratio;
+  // For portrait orientation, swap dimensions and rotate images
+  // so the print layout stays consistent (landscape paper layout)
+  const pdfWidth = orientation === "portrait" ? height : width;
+  const pdfHeight = orientation === "portrait" ? width : height;
+
+  // Rotate images if needed for portrait orientation
+  const processedFrames = await Promise.all(
+    frames.map((frame) => rotateImageForPrint(frame, orientation)),
+  );
+
+  const processedCover = cover
+    ? await rotateImageForPrint(cover, orientation)
+    : null;
 
   // Create content array starting with cover if available
   const content = [];
@@ -66,7 +123,7 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   };
 
   // Add cover as first page if it exists
-  if (cover) {
+  if (processedCover) {
     content.push({
       table: {
         widths: [bindingWidth, pdfWidth], // 20px for rectangle, rest for image
@@ -75,7 +132,7 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
             binding,
             {
               // Image
-              image: cover,
+              image: processedCover,
               ...imageProperties,
               border: [false, true, true, true], // left, top, right, bottom
             },
@@ -88,7 +145,7 @@ export const generateFlipbookPDF = (options: PrintOptions): void => {
   }
 
   // Add all video frames
-  frames.forEach((image) => {
+  processedFrames.forEach((image) => {
     content.push({
       table: {
         widths: [bindingWidth, pdfWidth], // 20px for rectangle, rest for image

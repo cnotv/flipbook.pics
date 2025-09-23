@@ -9,6 +9,15 @@
           {{ useMetric ? "cm" : "in" }}
         </button>
         <button
+          class="flip-size-selector__orientation-toggle"
+          @click="$emit('toggleOrientation')"
+          :title="
+            orientation === 'landscape' ? 'Switch to Portrait' : 'Switch to Landscape'
+          "
+        >
+          <IconRotate />
+        </button>
+        <button
           class="flip-size-selector__collapse-toggle"
           :class="{
             'flip-size-selector__collapse-toggle--collapsed': isCollapsed,
@@ -58,7 +67,8 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from "vue";
+import { ref, computed } from "vue";
+import IconRotate from "./icons/IconRotate.vue";
 
 interface FlipbookSize {
   id: string;
@@ -68,93 +78,116 @@ interface FlipbookSize {
   description: string;
 }
 
+interface Props {
+  orientation?: "landscape" | "portrait";
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  orientation: "landscape",
+});
+
 const selectedSize = ref("classic");
 const useMetric = ref(true); // Set metric as default
 const isCollapsed = ref(true); // Start collapsed by default
 
-const flipbookSizes: FlipbookSize[] = [
-  {
-    id: "mini",
-    name: "Mini",
-    width: 3, // landscape: wider than tall
-    height: 2,
-    description: "Pocket size",
-  },
-  {
-    id: "small",
-    name: "Small",
-    width: 4, // landscape
-    height: 3,
-    description: "Compact",
-  },
-  {
-    id: "postcard",
-    name: "Postcard",
-    width: 5.5, // landscape postcard
-    height: 4,
-    description: "Standard postcard",
-  },
-  {
-    id: "classic",
-    name: "Classic",
-    width: 6, // landscape
-    height: 4,
-    description: "Most popular",
-  },
-  {
-    id: "medium",
-    name: "Medium",
-    width: 7, // landscape
-    height: 5,
-    description: "Great balance",
-  },
-  {
-    id: "large",
-    name: "Large",
-    width: 8, // landscape
-    height: 6,
-    description: "Better details",
-  },
-  {
-    id: "professional",
-    name: "Professional",
-    width: 10, // landscape
-    height: 8,
-    description: "Presentation",
-  },
-  {
-    id: "widescreen",
-    name: "Widescreen",
-    width: 8,
-    height: 4.5,
-    description: "16:9 format",
-  },
-  {
-    id: "square-small",
-    name: "Square Small",
-    width: 4,
-    height: 4,
-    description: "Instagram style",
-  },
-  {
-    id: "square-large",
-    name: "Square Large",
-    width: 6,
-    height: 6,
-    description: "Social media",
-  },
-  {
-    id: "panoramic",
-    name: "Panoramic",
-    width: 10,
-    height: 4,
-    description: "Ultra-wide format",
-  },
-];
-
 const emit = defineEmits<{
   sizeChange: [size: FlipbookSize];
+  toggleOrientation: [];
 }>();
+
+// Computed sizes that adjust based on orientation
+const flipbookSizes = computed(() => {
+  const baseSizes: FlipbookSize[] = [
+    {
+      id: "mini",
+      name: "Mini",
+      width: 3, // landscape: wider than tall
+      height: 2,
+      description: "Pocket size",
+    },
+    {
+      id: "small",
+      name: "Small",
+      width: 4, // landscape
+      height: 3,
+      description: "Compact",
+    },
+    {
+      id: "postcard",
+      name: "Postcard",
+      width: 5.5, // landscape postcard
+      height: 4,
+      description: "Standard postcard",
+    },
+    {
+      id: "classic",
+      name: "Classic",
+      width: 6, // landscape
+      height: 4,
+      description: "Most popular",
+    },
+    {
+      id: "medium",
+      name: "Medium",
+      width: 7, // landscape
+      height: 5,
+      description: "Great balance",
+    },
+    {
+      id: "large",
+      name: "Large",
+      width: 8, // landscape
+      height: 6,
+      description: "Better details",
+    },
+    {
+      id: "professional",
+      name: "Professional",
+      width: 10, // landscape
+      height: 8,
+      description: "Presentation",
+    },
+    {
+      id: "widescreen",
+      name: "Widescreen",
+      width: 8,
+      height: 4.5,
+      description: "16:9 format",
+    },
+    {
+      id: "square-small",
+      name: "Square Small",
+      width: 4,
+      height: 4,
+      description: "Instagram style",
+    },
+    {
+      id: "square-large",
+      name: "Square Large",
+      width: 6,
+      height: 6,
+      description: "Social media",
+    },
+    {
+      id: "panoramic",
+      name: "Panoramic",
+      width: 10,
+      height: 4,
+      description: "Ultra-wide format",
+    },
+  ];
+
+  // For portrait orientation, swap width and height for non-square sizes
+  if (props.orientation === "portrait") {
+    return baseSizes.map((size) => ({
+      ...size,
+      width: size.width === size.height ? size.width : size.height, // Keep squares as squares
+      height: size.width === size.height ? size.height : size.width, // Swap for rectangles
+    }));
+  }
+
+  return baseSizes;
+});
 
 // Unit conversion functions
 const inchesToCm = (inches: number) => Math.round(inches * 2.54 * 10) / 10;
@@ -176,7 +209,7 @@ const formatDimensions = (size: FlipbookSize) => {
 
 const selectSize = (sizeId: string) => {
   selectedSize.value = sizeId;
-  const size = flipbookSizes.find((s) => s.id === sizeId);
+  const size = flipbookSizes.value.find((s) => s.id === sizeId);
   if (size) {
     emit("sizeChange", size);
   }
@@ -196,12 +229,12 @@ const getPreviewHeight = (size: FlipbookSize) => {
 };
 
 const getCurrentSizeName = () => {
-  const currentSize = flipbookSizes.find((s) => s.id === selectedSize.value);
+  const currentSize = flipbookSizes.value.find((s) => s.id === selectedSize.value);
   return currentSize ? currentSize.name : "Classic";
 };
 
 // Emit initial size
-const initialSize = flipbookSizes.find((s) => s.id === selectedSize.value);
+const initialSize = flipbookSizes.value.find((s) => s.id === selectedSize.value);
 if (initialSize) {
   emit("sizeChange", initialSize);
 }
@@ -237,6 +270,7 @@ if (initialSize) {
   }
 
   &__unit-toggle,
+  &__orientation-toggle,
   &__collapse-toggle {
     background: var(--paper-white, #fefefe);
     border: 2px solid var(--main-color, #00b894);
@@ -247,6 +281,9 @@ if (initialSize) {
     color: var(--main-color, #00b894);
     cursor: pointer;
     transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     &:hover {
       background: var(--main-color, #00b894);
@@ -260,9 +297,16 @@ if (initialSize) {
     padding: 0.5rem;
     font-size: 1rem;
     min-width: 2.5rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  }
+
+  &__orientation-toggle {
+    padding: 0.5rem;
+    min-width: 2.5rem;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
   }
 
   &__unit-toggle {
